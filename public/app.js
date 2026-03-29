@@ -25,6 +25,30 @@ function apiBase() {
   return inferred;
 }
 
+function candidateApiBases() {
+  const origin = window.location.origin;
+  const host = window.location.hostname;
+  const proto = window.location.protocol;
+  const current = normalizedBase(apiBaseInput.value || "");
+  const candidates = [
+    current,
+    `${origin}/api`,
+    `${proto}//${host}:8000`,
+    origin,
+  ].filter(Boolean);
+
+  const unique = [];
+  const seen = new Set();
+  for (const c of candidates) {
+    const n = normalizedBase(c);
+    if (!seen.has(n)) {
+      seen.add(n);
+      unique.push(n);
+    }
+  }
+  return unique;
+}
+
 async function probeApiBase(base) {
   try {
     const res = await fetch(`${base.replace(/\/$/, "")}/health`, { method: "GET" });
@@ -91,33 +115,36 @@ async function authedRequest(path, options = {}) {
 document.getElementById("loginBtn").addEventListener("click", async () => {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
+  const attempts = [];
 
   try {
-    const { res, data } = await fetchJson(`${apiBase()}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
+    for (const base of candidateApiBases()) {
+      const { res, data } = await fetchJson(`${base}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
 
-    if (!res.ok) {
-      token = "";
-      setStatus("Login failed", "warn");
-      alert(`Login failed (${res.status}). ${data.detail || "Check API base URL and credentials."}`);
-      return;
-    }
+      if (res.ok && data && typeof data.access_token === "string" && data.access_token.length > 0) {
+        token = data.access_token;
+        apiBaseInput.value = base;
+        setStatus("Signed in", "ok");
+        return;
+      }
 
-    token = data.access_token || "";
-    if (!token) {
-      setStatus("Login failed", "warn");
       const snippet =
         typeof data === "object" && data !== null
-          ? JSON.stringify(data).slice(0, 300)
-          : String(data).slice(0, 300);
-      alert(`Login response did not include a token.\nResponse snippet: ${snippet}`);
-      return;
+          ? JSON.stringify(data).slice(0, 180)
+          : String(data).slice(0, 180);
+      attempts.push(`${base} -> ${res.status} ${snippet}`);
     }
 
-    setStatus("Signed in", "ok");
+    token = "";
+    setStatus("Login failed", "warn");
+    alert(
+      "Login failed on all detected API bases.\n\nTried:\n" +
+      attempts.join("\n")
+    );
   } catch (err) {
     token = "";
     setStatus("API unreachable", "warn");
