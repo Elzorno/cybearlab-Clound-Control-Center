@@ -19,6 +19,8 @@ class Settings:
     script_https_students: str = os.getenv("SCRIPT_HTTPS_STUDENTS", "/usr/local/sbin/iscs1800-enable-https-students")
     script_https_admin: str = os.getenv("SCRIPT_HTTPS_ADMIN", "/usr/local/sbin/iscs1800-enable-https-admin")
     script_https_wildcard: str = os.getenv("SCRIPT_HTTPS_WILDCARD", "/usr/local/sbin/iscs1800-enable-https-wildcard")
+    upload_root_dir: str = os.getenv("UPLOAD_ROOT_DIR", "/tmp/iscs1800/uploads")
+    max_roster_upload_bytes: int = int(os.getenv("MAX_ROSTER_UPLOAD_BYTES", str(20 * 1024 * 1024)))
 
 
 settings = Settings()

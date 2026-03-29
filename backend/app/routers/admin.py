@@ -1,15 +1,41 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from ..deps import get_current_user_id, get_db
 from ..models import AdminAction
-from ..schemas import AdminActionAccepted, AdminActionRequest, AdminActionResult
+from ..schemas import AdminActionAccepted, AdminActionRequest, AdminActionResult, UploadRosterResponse
 from ..services.audit import write_audit
 from ..services.admin_executor import execute_admin_action
+from ..services.file_storage import save_roster_upload
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+
+@router.post("/uploads/roster", response_model=UploadRosterResponse)
+def upload_roster(
+    roster: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+) -> UploadRosterResponse:
+    upload = save_roster_upload(db=db, uploader_id=current_user_id, file=roster)
+    write_audit(
+        db,
+        actor_user_id=current_user_id,
+        event_type="admin.upload.roster",
+        entity_type="file_upload",
+        entity_id=upload.id,
+        status="success",
+        metadata={"filename": upload.original_name, "size_bytes": upload.size_bytes},
+    )
+    return UploadRosterResponse(
+        file_ref=upload.stored_path,
+        original_name=upload.original_name,
+        size_bytes=upload.size_bytes,
+        sha256=upload.sha256 or "",
+        content_type=upload.content_type,
+    )
 
 
 @router.post("/actions", response_model=AdminActionAccepted, status_code=202)

@@ -48,6 +48,8 @@ def _build_argv(payload: AdminActionRequest) -> list[str]:
     if payload.action == AdminActionType.BULK_ADD:
         term = _require(payload.term, "term")
         roster = _require(payload.roster_file_ref, "roster_file_ref")
+        if not os.path.isfile(roster):
+            raise ValueError("roster_file_ref does not exist on server")
         mode = payload.password_mode or "random"
         argv = [settings.script_bulk_add, "--term", term, "--file", roster, "--password-mode", mode]
         if payload.dry_run:

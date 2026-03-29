@@ -26,6 +26,13 @@ curl -sS -X POST http://127.0.0.1:8000/auth/login \
   -d '{"username":"admin","password":"change-me-now"}'
 ```
 
+Roster upload test (requires bearer token):
+```bash
+curl -sS -X POST http://127.0.0.1:8000/admin/uploads/roster \
+  -H "Authorization: Bearer <TOKEN>" \
+  -F "roster=@./sample.xlsx"
+```
+
 ## Notes
 - Contract source: `docs/phase-0/03-api-contract-openapi.yaml`
 - DB schema source: `docs/phase-0/schema.sql`

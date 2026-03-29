@@ -57,6 +57,14 @@ class AdminActionResult(BaseModel):
     output: str | None = None
 
 
+class UploadRosterResponse(BaseModel):
+    file_ref: str
+    original_name: str
+    size_bytes: int
+    sha256: str
+    content_type: str | None = None
+
+
 class GradeRequest(BaseModel):
     url: HttpUrl
     student_username: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]{2,15}$")
