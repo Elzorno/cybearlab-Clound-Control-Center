@@ -21,7 +21,7 @@ declare(strict_types=1);
         <h1>Control Center</h1>
       </div>
       <div class="topbar-actions">
-        <input id="apiBase" class="input mono" value="http://127.0.0.1:8000" aria-label="API base URL" />
+        <input id="apiBase" class="input mono" value="" placeholder="auto-detected (or set manually)" aria-label="API base URL" />
         <span id="statusPill" class="pill neutral">Not signed in</span>
       </div>
     </header>
