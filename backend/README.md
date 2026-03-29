@@ -17,6 +17,7 @@ Default bootstrap login:
 - Username: `admin`
 - Password: `change-me-now`
 - Override with env vars: `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_PASSWORD`
+- Admin execution mode defaults to `mock`; set `EXECUTION_MODE=live` to run real scripts via `sudo -n`.
 
 Quick login test:
 ```bash

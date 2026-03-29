@@ -1,12 +1,13 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..deps import get_current_user_id, get_db
 from ..models import AdminAction
 from ..schemas import AdminActionAccepted, AdminActionRequest, AdminActionResult
 from ..services.audit import write_audit
+from ..services.admin_executor import execute_admin_action
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -17,17 +18,38 @@ def create_admin_action(
     db: Session = Depends(get_db),
     current_user_id: str = Depends(get_current_user_id),
 ) -> AdminActionAccepted:
-    action = AdminAction(
-        action_type=payload.action.value,
-        status="queued",
-        requested_by=current_user_id,
-        params_json=payload.model_dump(mode="json", exclude_none=True),
-        summary="Accepted for execution",
-        started_at=datetime.utcnow(),
-    )
+    action = AdminAction(action_type=payload.action.value, status="queued", requested_by=current_user_id)
+    action.params_json = payload.model_dump(mode="json", exclude_none=True)
     db.add(action)
     db.commit()
     db.refresh(action)
+
+    try:
+        action.started_at = datetime.utcnow()
+        result = execute_admin_action(payload)
+        action.status = result.status
+        action.exit_code = result.exit_code
+        action.summary = result.summary
+        action.output_log = result.output
+        action.finished_at = datetime.utcnow()
+        db.commit()
+        db.refresh(action)
+    except ValueError as exc:
+        action.status = "failed"
+        action.summary = "Validation failed"
+        action.output_log = str(exc)
+        action.finished_at = datetime.utcnow()
+        db.commit()
+        write_audit(
+            db,
+            actor_user_id=current_user_id,
+            event_type="admin.action.create",
+            entity_type="admin_action",
+            entity_id=action.id,
+            status="failed",
+            metadata={"error": str(exc), "action": payload.action.value},
+        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     write_audit(
         db,
@@ -35,8 +57,8 @@ def create_admin_action(
         event_type="admin.action.create",
         entity_type="admin_action",
         entity_id=action.id,
-        status="success",
-        metadata={"action": action.action_type},
+        status="success" if action.status == "success" else "failed",
+        metadata={"action": action.action_type, "result_status": action.status},
     )
 
     return AdminActionAccepted(action_id=action.id, status=action.status)

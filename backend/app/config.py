@@ -8,6 +8,17 @@ class Settings:
     token_ttl_seconds: int = int(os.getenv("TOKEN_TTL_SECONDS", "28800"))
     bootstrap_admin_username: str = os.getenv("BOOTSTRAP_ADMIN_USERNAME", "admin")
     bootstrap_admin_password: str = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "change-me-now")
+    execution_mode: str = os.getenv("EXECUTION_MODE", "mock")
+    command_timeout_seconds: int = int(os.getenv("COMMAND_TIMEOUT_SECONDS", "120"))
+
+    script_add_student: str = os.getenv("SCRIPT_ADD_STUDENT", "/usr/local/sbin/iscs1800-add-student")
+    script_reset_password: str = os.getenv("SCRIPT_RESET_PASSWORD", "/usr/local/sbin/iscs1800-reset-password")
+    script_disable_student: str = os.getenv("SCRIPT_DISABLE_STUDENT", "/usr/local/sbin/iscs1800-disable-student")
+    script_bulk_add: str = os.getenv("SCRIPT_BULK_ADD", "/usr/local/sbin/iscs1800-bulk-add")
+    script_fix_perms: str = os.getenv("SCRIPT_FIX_PERMS", "/usr/local/sbin/iscs1800-fix-perms")
+    script_https_students: str = os.getenv("SCRIPT_HTTPS_STUDENTS", "/usr/local/sbin/iscs1800-enable-https-students")
+    script_https_admin: str = os.getenv("SCRIPT_HTTPS_ADMIN", "/usr/local/sbin/iscs1800-enable-https-admin")
+    script_https_wildcard: str = os.getenv("SCRIPT_HTTPS_WILDCARD", "/usr/local/sbin/iscs1800-enable-https-wildcard")
 
 
 settings = Settings()
