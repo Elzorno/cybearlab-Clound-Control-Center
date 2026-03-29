@@ -1,0 +1,489 @@
+openapi: 3.1.0
+info:
+  title: ISCS1800 Unified Admin + Grader API
+  version: 0.1.0
+  description: |
+    Initial contract for integrating existing student-hosting admin operations
+    with the auto-grader workflow.
+servers:
+  - url: https://admin.cybearlab.cloud/api
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Service health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Auth token response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+
+  /admin/actions:
+    post:
+      tags: [Admin]
+      summary: Execute privileged admin action
+      description: |
+        Enqueues or runs an allowlisted operation equivalent to existing PHP actions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminActionRequest"
+      responses:
+        "202":
+          description: Action accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminActionAccepted"
+        "400":
+          description: Validation error
+        "403":
+          description: Not authorized
+
+  /admin/actions/{actionId}:
+    get:
+      tags: [Admin]
+      summary: Get action status/output
+      parameters:
+        - in: path
+          name: actionId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Action result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminActionResult"
+        "404":
+          description: Not found
+
+  /grader/runs:
+    post:
+      tags: [Grader]
+      summary: Submit URL for grading
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GradeRequest"
+      responses:
+        "202":
+          description: Grade job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GradeRunAccepted"
+        "400":
+          description: Invalid URL
+
+    get:
+      tags: [Grader]
+      summary: List grading runs
+      parameters:
+        - in: query
+          name: term
+          schema:
+            type: string
+        - in: query
+          name: student
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Paginated runs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GradeRunListResponse"
+
+  /grader/runs/{runId}:
+    get:
+      tags: [Grader]
+      summary: Get grading run details
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Grading result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GradeResponse"
+        "404":
+          description: Not found
+
+  /grader/runs/{runId}/export:
+    get:
+      tags: [Grader]
+      summary: Export grading run
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+      responses:
+        "200":
+          description: Export payload
+
+  /audit/events:
+    get:
+      tags: [Audit]
+      summary: List audit events
+      parameters:
+        - in: query
+          name: actionType
+          schema:
+            type: string
+        - in: query
+          name: actor
+          schema:
+            type: string
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditListResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        version:
+          type: string
+        queue_depth:
+          type: integer
+      required: [status, version]
+
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+      required: [username, password]
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: bearer
+        expires_in:
+          type: integer
+      required: [access_token, token_type, expires_in]
+
+    AdminActionType:
+      type: string
+      enum:
+        - add_student
+        - reset_password
+        - disable_student
+        - bulk_add
+        - fix_perms_one
+        - fix_perms_all
+        - https_students_one
+        - https_students_all
+        - https_admin
+        - https_wildcard
+
+    AdminActionRequest:
+      type: object
+      properties:
+        action:
+          $ref: "#/components/schemas/AdminActionType"
+        term:
+          type: string
+          pattern: "^[A-Za-z0-9._-]{2,20}$"
+        username:
+          type: string
+          pattern: "^[a-z][a-z0-9_-]{2,15}$"
+        password_mode:
+          type: string
+          enum: [random, manual, id]
+        password:
+          type: string
+          minLength: 10
+        admin_email:
+          type: string
+          format: email
+        propagation_seconds:
+          type: integer
+          minimum: 30
+          maximum: 900
+        dry_run:
+          type: boolean
+          default: false
+        roster_file_ref:
+          type: string
+          description: Server-side file reference after upload endpoint.
+      required: [action]
+
+    AdminActionAccepted:
+      type: object
+      properties:
+        action_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running]
+      required: [action_id, status]
+
+    AdminActionResult:
+      type: object
+      properties:
+        action_id:
+          type: string
+          format: uuid
+        action:
+          $ref: "#/components/schemas/AdminActionType"
+        status:
+          type: string
+          enum: [queued, running, success, failed, timed_out]
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        exit_code:
+          type: integer
+        summary:
+          type: string
+        output:
+          type: string
+      required: [action_id, action, status]
+
+    GradeRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        student_username:
+          type: string
+          pattern: "^[a-z][a-z0-9_-]{2,15}$"
+        term:
+          type: string
+          pattern: "^[A-Za-z0-9._-]{2,20}$"
+      required: [url]
+
+    GradeRunAccepted:
+      type: object
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued]
+      required: [run_id, status]
+
+    GradeRunListItem:
+      type: object
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        total_score:
+          type: number
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required: [run_id, url, status, created_at]
+
+    GradeRunListResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GradeRunListItem"
+      required: [page, page_size, total, items]
+
+    ScoreSection:
+      type: object
+      properties:
+        score:
+          type: number
+        max_score:
+          type: number
+        details:
+          type: object
+          additionalProperties: true
+      required: [score, max_score, details]
+
+    GradeResponse:
+      type: object
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, completed, failed]
+        input_url:
+          type: string
+          format: uri
+        normalized_root:
+          type: string
+          format: uri
+        total_score:
+          type: number
+          nullable: true
+        sections:
+          type: object
+          properties:
+            page_count:
+              $ref: "#/components/schemas/ScoreSection"
+            external_stylesheet:
+              $ref: "#/components/schemas/ScoreSection"
+            structures:
+              $ref: "#/components/schemas/ScoreSection"
+            responsiveness:
+              $ref: "#/components/schemas/ScoreSection"
+            theme:
+              $ref: "#/components/schemas/ScoreSection"
+            navigation:
+              $ref: "#/components/schemas/ScoreSection"
+            validity:
+              $ref: "#/components/schemas/ScoreSection"
+        summary_feedback:
+          type: array
+          items:
+            type: string
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+      required: [run_id, status, input_url]
+
+    AuditEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        actor:
+          type: string
+        action_type:
+          type: string
+        entity_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [success, failed, denied]
+        created_at:
+          type: string
+          format: date-time
+      required: [id, actor, action_type, status, created_at]
+
+    AuditListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+      required: [items]

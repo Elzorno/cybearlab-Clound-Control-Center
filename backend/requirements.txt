@@ -1,0 +1,11 @@
+fastapi==0.117.1
+uvicorn[standard]==0.37.0
+pydantic==2.11.9
+python-multipart==0.0.20
+httpx==0.28.1
+beautifulsoup4==4.14.2
+SQLAlchemy==2.0.43
+psycopg[binary]==3.2.10
+alembic==1.16.5
+redis==6.4.0
+celery==5.5.3
