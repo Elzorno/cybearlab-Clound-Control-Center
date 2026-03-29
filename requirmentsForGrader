@@ -1,0 +1,677 @@
+Auto-Grader for Web Development Class — Complete Requirements Document
+Project Name: Web Development Auto-Grader
+Version: 1.0
+Date: March 29, 2026
+Author: Prepared for web development class instructor
+
+1. Executive Summary
+This project is a web-based auto-grading application designed to evaluate student HTML/CSS websites against a standardized rubric. The system accepts a live URL, crawls all same-domain pages, validates HTML using the W3C Nu HTML Checker API, and scores the site across seven rubric categories, producing a 0–100 numeric grade with detailed feedback.
+
+2. Project Objectives
+Automate grading of student websites for structural, stylistic, and validation requirements.
+
+Provide immediate feedback to students with actionable recommendations.
+
+Ensure consistency across grading by applying objective, programmatic criteria.
+
+Reduce instructor workload by eliminating manual HTML validation and structure checking.
+
+3. Functional Requirements
+3.1 Input
+URL Input: User submits a single live URL (student's homepage, e.g., https://studentname.github.io/project1).
+
+Validation: URL must be valid HTTP/HTTPS.
+
+Scope: System crawls only same-domain pages (same scheme and hostname as root URL).
+
+3.2 Crawling Behavior
+Starting Point: Homepage URL provided by user.
+
+Link Following:
+
+Extract all <a href> links from each page.
+
+Follow only internal links (same domain as root).
+
+Ignore:
+
+Fragments (#...)
+
+mailto:, tel:, javascript: links
+
+External domains
+
+Depth & Limits:
+
+Breadth-first crawl.
+
+Cap at 30 HTML pages to prevent runaway crawling.
+
+Normalize URLs (resolve relative paths, strip fragments).
+
+Track visited URLs to avoid duplicates.
+
+3.3 W3C HTML Validation
+Service: W3C Nu HTML Checker API at https://validator.w3.org/nu/
+
+Method: GET request with ?doc=<url>&out=json for each discovered HTML page.
+
+Message Classification:
+
+Errors: type == "error"
+
+Warnings: type == "info" and subtype == "warning"
+
+Info: Other informational messages (ignored for scoring)
+
+Data Collected: For each message:
+
+URL of page
+
+Type and subtype
+
+Message text
+
+Line/column numbers
+
+Extract (code snippet)
+
+3.4 Page Analysis
+For each HTML page, extract:
+
+External Stylesheets: All <link rel="stylesheet" href="..."> references
+
+Structural Elements:
+
+Forms: <form> elements
+
+Tables: <table> with <tr>, <th>, or <td>
+
+Lists: <ul> or <ol> with <li>
+
+Media: <img>, <video>, <audio>
+
+Internal Links: All same-domain <a href> links
+
+Inline/Internal Styles: Presence of <style> tags (noted but not penalized)
+
+3.5 CSS Analysis (Future Enhancement)
+Download external CSS files referenced by pages.
+
+Search for @media rules indicating responsive design.
+
+Track where @media appears (external vs inline).
+
+4. Grading Rubric (0–100 Points)
+4.1 Page Count (10 points)
+Requirement: At least 5 distinct addressable HTML pages on the same domain.
+
+Scoring:
+
+≥5 pages: 10 points
+
+4 pages: 7 points
+
+3 pages: 4 points
+
+2 pages: 2 points
+
+1 page: 0 points
+
+Auto-Check: Count unique HTML URLs successfully crawled.
+
+4.2 External Stylesheet as Main Source of Style (15 points)
+Requirements:
+
+At least one external CSS file linked via <link rel="stylesheet">.
+
+That stylesheet is used by the majority of pages (≥4 pages if site has 5 pages).
+
+Inline and internal <style> allowed but should not dominate.
+
+Scoring:
+
+Main stylesheet used on all pages: 15 points
+
+Main stylesheet used on ≥4 pages: 12 points
+
+Used on 2–3 pages: 7 points
+
+Used on ≤1 page or no external stylesheet: 0 points
+
+Auto-Check:
+
+Identify most commonly linked external stylesheet across all pages.
+
+Count pages that reference it.
+
+4.3 Required HTML Structures (30 points)
+Requirements: Site must correctly use the following elements without validation errors:
+
+Form (7.5 points)
+
+At least one <form> element
+
+No W3C errors related to form or its descendants
+
+Table (7.5 points)
+
+At least one <table> with <tr> and <th> or <td>
+
+No W3C errors related to table structure
+
+Lists (7.5 points)
+
+At least one <ul> or <ol> with <li>
+
+No W3C errors related to list elements
+
+Media (7.5 points)
+
+At least one <img>, <video>, or <audio>
+
+No W3C errors related to media element
+
+Scoring per sub-criterion:
+
+Present with 0 related errors: 7.5 points
+
+Present with 1–2 related errors: 4 points
+
+Present with 3+ related errors: 2 points
+
+Not present: 0 points
+
+Auto-Check:
+
+Detect presence of elements via HTML parsing.
+
+Map validator error messages to elements by line number or extract text.
+
+4.4 Responsiveness via @media (10 points)
+Requirement: At least one @media rule in CSS for responsive design.
+
+Scoring:
+
+@media found in external stylesheet: 10 points
+
+@media only in inline <style> tags: 6 points
+
+No @media rules: 0 points
+
+Auto-Check:
+
+Download external CSS files.
+
+Search for @media keyword followed by media query and rule block.
+
+4.5 Consistent Theme via Shared External CSS (15 points)
+Requirement: Majority of styling comes from a shared external stylesheet reused across pages.
+
+Scoring:
+
+Main stylesheet used on all pages: 15 points
+
+Main stylesheet used on ≥4 pages: 12 points
+
+Used on 2–3 pages: 5 points
+
+Used on ≤1 page: 0 points
+
+Auto-Check: Same as section 4.2 (reuse of main stylesheet).
+
+4.6 Navigation & Internal Linking (10 points)
+Requirements:
+
+Site has navigable internal structure.
+
+Internal links do not produce 404 errors.
+
+At least 4 distinct internal links present across the site.
+
+Scoring:
+
+0 broken internal links and ≥4 internal links: 10 points
+
+1–2 broken links: 7 points
+
+3–5 broken links: 4 points
+
+>5 broken links or minimal internal linking: 0 points
+
+Auto-Check:
+
+Collect all internal links from crawled pages.
+
+Attempt HTTP requests to each and track status codes.
+
+Count links returning non-2xx/3xx responses as broken.
+
+4.7 HTML Validity via W3C (20 points)
+Requirement: Pages pass W3C HTML validation with minimal errors and warnings.
+
+Scoring Formula:
+
+Score
+=
+max
+⁡
+(
+0
+,
+20
+−
+E
+−
+0.25
+×
+W
+)
+Score=max(0,20−E−0.25×W)
+Where:
+
+E = total number of errors across all pages
+
+W = total number of warnings across all pages
+
+Penalties:
+
+Each error: −1 point
+
+Each warning: −0.25 points
+
+Minimum score: 0 points (cannot go negative)
+
+Auto-Check:
+
+Sum all error and warning messages from W3C validator responses.
+
+Apply formula.
+
+4.8 Total Score
+Total Score
+=
+Page Count
++
+External Stylesheet
++
+Structures
++
+Responsiveness
++
+Theme
++
+Navigation
++
+Validity
+Total Score=Page Count+External Stylesheet+Structures+Responsiveness+Theme+Navigation+Validity
+Maximum: 100 points
+
+5. Output Requirements
+5.1 Grading Report Structure
+JSON Response Format (from API):
+
+json
+{
+  "input_url": "https://example.com",
+  "normalized_root": "https://example.com",
+  "total_score": 87.5,
+  "sections": {
+    "page_count": {
+      "score": 10,
+      "max_score": 10,
+      "details": {
+        "num_pages": 6,
+        "urls": ["...", "..."]
+      }
+    },
+    "external_stylesheet": {
+      "score": 12,
+      "max_score": 15,
+      "details": {
+        "main_stylesheet": "https://example.com/css/main.css",
+        "used_on": ["...", "..."],
+        "pages_by_stylesheet": {}
+      }
+    },
+    "structures": {
+      "score": 24,
+      "max_score": 30,
+      "details": {
+        "presence": {"form": true, "table": true, "lists": true, "media": false},
+        "sub_scores": {"form": 7.5, "table": 7.5, "lists": 7.5, "media": 0}
+      }
+    },
+    "responsiveness": {
+      "score": 10,
+      "max_score": 10,
+      "details": {}
+    },
+    "theme": {
+      "score": 12,
+      "max_score": 15,
+      "details": {}
+    },
+    "navigation": {
+      "score": 7,
+      "max_score": 10,
+      "details": {
+        "total_internal_links": 12,
+        "broken_links": ["https://example.com/missing.html"]
+      }
+    },
+    "validity": {
+      "score": 12.5,
+      "max_score": 20,
+      "details": {
+        "total_errors": 6,
+        "total_warnings": 4,
+        "errors": [...],
+        "warnings": [...]
+      }
+    }
+  },
+  "summary_feedback": [
+    "Add at least one media element (img, video, or audio).",
+    "Fix 1 broken internal link: /missing.html",
+    "Reduce HTML errors to improve validity score."
+  ]
+}
+5.2 Student-Friendly Feedback
+For each rubric section, generate:
+
+What passed: Brief confirmation of requirements met.
+
+What failed: Specific issues with page URLs where applicable.
+
+Recommendations: Plain-English suggestions for improvement.
+
+Example Feedback Items:
+
+"Page count: 10/10 – Found 6 HTML pages."
+
+"External stylesheet: 12/15 – main.css is used on 4 out of 5 pages. Apply it to all pages for full credit."
+
+"Structures: 24/30 – Missing media element. Add at least one <img>, <video>, or <audio>."
+
+"Validity: 12.5/20 – 6 errors and 4 warnings reported by W3C. Review /contact.html (3 errors) and /about.html (2 errors)."
+
+6. Technical Architecture
+6.1 Technology Stack
+Backend Framework: Python + FastAPI
+
+HTTP Client: httpx (async)
+
+HTML Parsing: beautifulsoup4
+
+Data Models: Pydantic (built into FastAPI)
+
+Deployment: Proxmox LXC container or standard Linux server
+
+Web Server: Reverse proxy (Apache/Nginx) forwarding /grade to FastAPI backend
+
+6.2 Project Structure
+text
+autograder/
+├── app/
+│   ├── __init__.py
+│   ├── main.py              # FastAPI app, routes
+│   ├── crawler.py           # crawl same-domain pages
+│   ├── validator_client.py  # W3C validator API client
+│   ├── scoring.py           # rubric scoring logic
+│   ├── models.py            # Pydantic request/response models
+│   └── utils.py             # URL normalization helpers
+├── frontend/
+│   ├── index.html           # simple GUI form
+│   ├── app.js               # JavaScript to call /grade API
+│   └── style.css            # basic CSS (optional)
+├── scripts/
+│   └── install.sh           # installation script
+├── requirements.txt         # Python dependencies
+└── README.md                # project documentation
+6.3 API Endpoints
+POST /grade
+Request:
+
+json
+{
+  "url": "https://studentname.github.io/project1"
+}
+Response: See section 5.1 (GradeResponse JSON)
+
+Status Codes:
+
+200 OK: Successful grading
+
+400 Bad Request: Invalid URL or crawl/validation error
+
+422 Unprocessable Entity: Pydantic validation error
+
+GET /docs
+FastAPI auto-generated interactive API documentation (Swagger UI)
+
+GET /frontend/index.html
+Serves the simple grading GUI (or served separately via webserver)
+
+7. Non-Functional Requirements
+7.1 Performance
+Crawl Time: Maximum 30 seconds for sites with ≤30 pages
+
+Validation: W3C API calls may take 1–3 seconds per page; timeout at 20 seconds per request
+
+Concurrency: Async HTTP requests to improve speed
+
+Rate Limiting: Respect W3C validator usage guidelines (avoid excessive requests)
+
+7.2 Reliability
+Error Handling:
+
+If a page fails to load (404, timeout), skip and continue crawling
+
+If W3C validator fails for a page, note in details but continue grading other criteria
+
+Graceful Degradation: Partial scores awarded based on successfully analyzed pages
+
+7.3 Usability
+Simple GUI: Single-page interface with URL input and grade display
+
+Clear Feedback: Students see:
+
+Total score (large, prominent)
+
+Per-section breakdown
+
+Specific issues and recommendations
+
+Fast Feedback Loop: Results returned within 30–60 seconds
+
+7.4 Security
+Input Validation: Pydantic validates URL format
+
+No Arbitrary Code Execution: Only fetch and parse HTML/CSS (no JavaScript execution)
+
+Rate Limiting (future): Prevent abuse by limiting requests per IP/user
+
+7.5 Maintainability
+Modular Design: Separate concerns (crawling, validation, scoring)
+
+Clear Documentation: Inline comments and README
+
+Extensible Rubric: Easy to adjust point values or add new criteria
+
+8. Deployment Requirements
+8.1 Hosting Environment
+Options:
+
+Proxmox LXC container (Debian/Ubuntu-based)
+
+Standard Linux server (VPS or dedicated)
+
+Network: Outbound HTTPS access to W3C validator API
+
+Reverse Proxy: Apache or Nginx to forward /grade requests to FastAPI backend
+
+8.2 Software Dependencies
+Python: 3.10 or newer
+
+Python Packages (from requirements.txt):
+
+fastapi
+
+uvicorn[standard] (ASGI server)
+
+httpx
+
+beautifulsoup4
+
+pydantic
+
+python-multipart (for form data if needed)
+
+System Packages (optional):
+
+python3-venv (virtual environment support)
+
+git (for deployment via repository)
+
+8.3 Installation Script
+Purpose: Automate setup on fresh Linux system
+
+Script Tasks (scripts/install.sh):
+
+Check Python version (≥3.10)
+
+Create Python virtual environment
+
+Install dependencies from requirements.txt
+
+Provide instructions for:
+
+Running FastAPI via uvicorn
+
+Setting up systemd service (optional)
+
+Configuring reverse proxy (sample Nginx/Apache config)
+
+9. Future Enhancements (Out of Scope for v1.0)
+9.1 Advanced CSS Analysis
+Parse CSS to verify specific @media breakpoints
+
+Check for Flexbox/Grid usage
+
+Validate CSS syntax via W3C CSS Validator
+
+9.2 Accessibility Checking
+Verify alt attributes on images
+
+Check color contrast ratios
+
+Validate ARIA attributes
+
+9.3 JavaScript Analysis
+Detect use of modern ES6+ syntax
+
+Check for console errors via headless browser
+
+9.4 Plagiarism Detection
+Compare student submissions to detect copied code
+
+9.5 User Authentication
+Instructor dashboard to view all student grades
+
+Student login to view their own submissions
+
+9.6 Database Storage
+Store grading history for each student
+
+Track submission timestamps
+
+Generate class-wide analytics
+
+9.7 Batch Grading
+Accept CSV of student URLs
+
+Grade all sites and export results
+
+10. Acceptance Criteria
+The project is considered complete when:
+
+✅ User can submit a URL via GUI
+
+✅ System crawls all same-domain HTML pages (up to 30)
+
+✅ System validates each page via W3C HTML Checker API
+
+✅ System scores site across all 7 rubric categories
+
+✅ System returns JSON response with 0–100 score and detailed breakdown
+
+✅ GUI displays score and section-by-section feedback
+
+✅ Install script successfully sets up environment on clean Linux system
+
+✅ All rubric calculations match the formulas in section 4
+
+✅ Error handling prevents crashes on malformed URLs or network failures
+
+11. Testing Requirements
+11.1 Unit Tests
+URL normalization and same-domain detection
+
+Rubric scoring functions with known inputs
+
+Validator message parsing
+
+11.2 Integration Tests
+End-to-end grading of sample student sites
+
+W3C API integration (mock or live)
+
+Crawler behavior on multi-page sites
+
+11.3 Manual Testing
+Submit known-good sites (should score 90–100)
+
+Submit sites with known issues (verify correct penalties)
+
+Test with broken links, missing elements, validation errors
+
+12. Constraints and Assumptions
+12.1 Constraints
+No JavaScript Execution: Crawler does not execute JavaScript (static HTML analysis only)
+
+W3C API Dependency: Grading relies on external W3C validator service availability
+
+Same-Domain Only: Cannot grade multi-domain student projects
+
+Page Limit: Maximum 30 pages to prevent excessive crawl times
+
+12.2 Assumptions
+Students host sites on public URLs (GitHub Pages, Netlify, etc.)
+
+Sites use standard HTML5 and CSS3
+
+Students understand and accept automated grading limitations
+
+Instructor has access to Linux server or LXC environment for deployment
+
+13. Glossary
+W3C Nu HTML Checker: Official HTML5 validator service (validator.w3.org/nu/)
+
+Same-Domain Link: URL with matching scheme and hostname as root URL
+
+Internal Link: Same as same-domain link (used interchangeably)
+
+External Stylesheet: CSS file linked via <link rel="stylesheet">
+
+Inline Style: CSS in <style> tags or style attributes
+
+Validator Message: Error, warning, or info message from W3C validator
+
+Rubric: Grading criteria with point allocations (0–100 scale)
+
+14. Approval and Sign-Off
+Prepared by: AI Assistant (Perplexity)
+Reviewed by: Web Development Instructor
+Date: March 29, 2026
+Status: Draft for Review
