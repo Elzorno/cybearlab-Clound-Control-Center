@@ -43,6 +43,7 @@ declare(strict_types=1);
         <a href="#/" class="nav-link" data-route="overview">Overview</a>
         <a href="#/grader" class="nav-link" data-route="grader">Auto-Grader</a>
         <a href="#/admin" class="nav-link" data-route="admin">Student Admin</a>
+        <a href="#/system" class="nav-link" data-route="system">System</a>
         <a href="#/reports" class="nav-link" data-route="reports">Reports</a>
         <a href="#/settings" class="nav-link" data-route="settings">Settings</a>
       </nav>
@@ -221,9 +222,214 @@ declare(strict_types=1);
         </article>
       </div>
 
+      <!-- Roster Import Section -->
+      <article class="card glass roster-import-card">
+        <h3>Import Students from CSV Roster</h3>
+        <p class="muted">Upload a CSV with columns: FirstName, LastName, StudentID</p>
+        
+        <div id="rosterUploadArea" class="file-upload-area">
+          <div class="upload-icon">📄</div>
+          <p class="upload-text">Drop CSV file here or <label class="upload-link">browse<input type="file" id="rosterFileInput" accept=".csv" hidden /></label></p>
+          <p class="upload-hint">Usernames: lastnamefirstinitial • Passwords: 6-digit StudentID</p>
+        </div>
+
+        <div id="rosterTermRow" class="roster-term-row hidden">
+          <label>Term <span class="optional">(optional)</span>
+            <input id="rosterTerm" class="input" placeholder="2026sp" />
+          </label>
+        </div>
+
+        <!-- Preview Table -->
+        <div id="rosterPreview" class="roster-preview hidden">
+          <div class="roster-preview-header">
+            <h4>Preview <span id="rosterPreviewCount"></span></h4>
+            <button id="rosterImportBtn" class="btn primary">Import All</button>
+          </div>
+          <div class="roster-table-wrap">
+            <table class="roster-table">
+              <thead>
+                <tr>
+                  <th>First Name</th>
+                  <th>Last Name</th>
+                  <th>Student ID</th>
+                  <th>→</th>
+                  <th>Username</th>
+                  <th>Password</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="rosterPreviewBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Import Progress -->
+        <div id="rosterProgress" class="roster-progress hidden">
+          <div class="progress-bar">
+            <div class="progress-fill" id="rosterProgressFill"></div>
+          </div>
+          <p id="rosterProgressText" class="muted">Importing...</p>
+        </div>
+
+        <!-- Import Results -->
+        <div id="rosterResults" class="roster-results hidden">
+          <div class="roster-results-summary">
+            <span class="result-stat ok"><span id="rosterCreatedCount">0</span> created</span>
+            <span class="result-stat warn"><span id="rosterSkippedCount">0</span> skipped</span>
+            <span class="result-stat error"><span id="rosterFailedCount">0</span> failed</span>
+          </div>
+          <details>
+            <summary>View Details</summary>
+            <div class="roster-table-wrap">
+              <table class="roster-table">
+                <thead>
+                  <tr>
+                    <th>Username</th>
+                    <th>Status</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody id="rosterResultsBody"></tbody>
+              </table>
+            </div>
+          </details>
+          <button id="rosterResetBtn" class="btn">Upload Another Roster</button>
+        </div>
+      </article>
+
       <article class="card glass">
         <h3>Operation Result</h3>
         <pre id="adminOutput" class="output">No operation run yet.</pre>
+      </article>
+    </section>
+
+    <!-- View: System Monitoring -->
+    <section id="view-system" class="view hidden">
+      <div class="view-header">
+        <h2>System Monitoring</h2>
+        <p class="muted">Server health, services, logs, and backups</p>
+      </div>
+      
+      <!-- System Stats Cards -->
+      <div class="grid-4">
+        <article class="card glass stat-card">
+          <p class="stat-label">Uptime</p>
+          <p id="sysUptime" class="stat-value">—</p>
+        </article>
+        <article class="card glass stat-card">
+          <p class="stat-label">CPU Usage</p>
+          <p id="sysCpu" class="stat-value">—</p>
+          <div class="stat-bar"><div id="sysCpuBar" class="stat-bar-fill"></div></div>
+        </article>
+        <article class="card glass stat-card">
+          <p class="stat-label">Memory</p>
+          <p id="sysMemory" class="stat-value">—</p>
+          <div class="stat-bar"><div id="sysMemoryBar" class="stat-bar-fill"></div></div>
+        </article>
+        <article class="card glass stat-card">
+          <p class="stat-label">Disk</p>
+          <p id="sysDisk" class="stat-value">—</p>
+          <div class="stat-bar"><div id="sysDiskBar" class="stat-bar-fill"></div></div>
+        </article>
+      </div>
+
+      <!-- System Sub-tabs -->
+      <div class="system-tabs">
+        <button class="sys-tab-btn active" data-sys-tab="services">Services</button>
+        <button class="sys-tab-btn" data-sys-tab="logs">Logs</button>
+        <button class="sys-tab-btn" data-sys-tab="processes">Processes</button>
+        <button class="sys-tab-btn" data-sys-tab="backups">Backups</button>
+      </div>
+
+      <!-- Services Panel -->
+      <article id="sysServicesPanel" class="card glass sys-panel">
+        <div class="panel-header">
+          <h3>System Services</h3>
+          <button id="refreshServicesBtn" class="btn btn-sm">Refresh</button>
+        </div>
+        <div class="services-grid" id="servicesGrid">
+          <p class="muted">Loading services...</p>
+        </div>
+      </article>
+
+      <!-- Logs Panel -->
+      <article id="sysLogsPanel" class="card glass sys-panel hidden">
+        <div class="panel-header">
+          <h3>Log Viewer</h3>
+          <div class="log-controls">
+            <select id="logSelect" class="input">
+              <option value="">Select a log file...</option>
+            </select>
+            <input id="logSearch" class="input" placeholder="Search pattern..." />
+            <button id="logSearchBtn" class="btn btn-sm">Search</button>
+            <button id="logStreamBtn" class="btn btn-sm primary">Live Stream</button>
+          </div>
+        </div>
+        <pre id="logOutput" class="output log-output">Select a log file to view its contents.</pre>
+      </article>
+
+      <!-- Processes Panel -->
+      <article id="sysProcessesPanel" class="card glass sys-panel hidden">
+        <div class="panel-header">
+          <h3>Top Processes</h3>
+          <button id="refreshProcessesBtn" class="btn btn-sm">Refresh</button>
+        </div>
+        <table class="process-table">
+          <thead>
+            <tr>
+              <th>PID</th>
+              <th>Name</th>
+              <th>User</th>
+              <th>CPU%</th>
+              <th>MEM%</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="processesBody">
+            <tr><td colspan="6" class="muted">Loading...</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <!-- Backups Panel -->
+      <article id="sysBackupsPanel" class="card glass sys-panel hidden">
+        <div class="panel-header">
+          <h3>Backups</h3>
+          <div class="backup-controls">
+            <select id="backupType" class="input">
+              <option value="full">Full Backup</option>
+              <option value="term">Term Backup</option>
+              <option value="student">Student Backup</option>
+            </select>
+            <select id="backupTerm" class="input hidden">
+              <option value="">Select term...</option>
+            </select>
+            <select id="backupStudent" class="input hidden">
+              <option value="">Select student...</option>
+            </select>
+            <button id="createBackupBtn" class="btn primary">Create Backup</button>
+          </div>
+        </div>
+        <div id="backupProgress" class="backup-progress hidden">
+          <div class="backup-progress-bar">
+            <div id="backupProgressFill" class="backup-progress-fill"></div>
+          </div>
+          <p id="backupProgressText" class="muted">Creating backup...</p>
+        </div>
+        <table class="backups-table">
+          <thead>
+            <tr>
+              <th>Filename</th>
+              <th>Type</th>
+              <th>Size</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="backupsBody">
+            <tr><td colspan="5" class="muted">Loading...</td></tr>
+          </tbody>
+        </table>
       </article>
     </section>
 

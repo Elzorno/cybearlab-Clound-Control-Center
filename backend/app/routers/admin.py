@@ -5,10 +5,21 @@ from sqlalchemy.orm import Session
 
 from ..deps import get_current_user_id, get_db
 from ..models import AdminAction
-from ..schemas import AdminActionAccepted, AdminActionRequest, AdminActionResult, UploadRosterResponse
+from ..schemas import (
+    AdminActionAccepted,
+    AdminActionRequest,
+    AdminActionResult,
+    RosterEntryPreview,
+    RosterImportRequest,
+    RosterImportResponse,
+    RosterImportResultItem,
+    RosterPreviewResponse,
+    UploadRosterResponse,
+)
 from ..services.audit import write_audit
 from ..services.admin_executor import execute_admin_action
 from ..services.file_storage import save_roster_upload
+from ..services.roster_processor import parse_roster_csv, import_roster, RosterEntry
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -125,4 +136,130 @@ def get_admin_action(
         exit_code=action.exit_code,
         summary=action.summary,
         output=action.output_log,
+    )
+
+
+# ============================================================
+# Roster CSV Import Endpoints
+# ============================================================
+
+@router.post("/roster/preview", response_model=RosterPreviewResponse)
+async def preview_roster(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+) -> RosterPreviewResponse:
+    """
+    Upload a CSV roster and get a preview of accounts to be created.
+    Expected columns: FirstName, LastName, StudentID
+    """
+    # Validate file type
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a CSV file (.csv extension)"
+        )
+    
+    # Read file content
+    try:
+        content = await file.read()
+        csv_text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            csv_text = content.decode("latin-1")
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unable to decode file. Please use UTF-8 encoding."
+            )
+    
+    # Parse CSV
+    preview = parse_roster_csv(csv_text)
+    
+    write_audit(
+        db,
+        actor_user_id=current_user_id,
+        event_type="admin.roster.preview",
+        entity_type="roster",
+        entity_id=None,
+        status="success",
+        metadata={
+            "filename": file.filename,
+            "valid_count": preview.valid_count,
+            "skip_count": preview.skip_count,
+        },
+    )
+    
+    return RosterPreviewResponse(
+        entries=[
+            RosterEntryPreview(
+                first_name=e.first_name,
+                last_name=e.last_name,
+                student_id=e.student_id,
+                username=e.username,
+                password=e.password,
+                status=e.status,
+                message=e.message,
+            )
+            for e in preview.entries
+        ],
+        errors=preview.errors,
+        valid_count=preview.valid_count,
+        skip_count=preview.skip_count,
+    )
+
+
+@router.post("/roster/import", response_model=RosterImportResponse)
+def import_roster_entries(
+    payload: RosterImportRequest,
+    db: Session = Depends(get_db),
+    current_user_id: str = Depends(get_current_user_id),
+) -> RosterImportResponse:
+    """
+    Import roster entries (from preview) to create student accounts.
+    """
+    # Convert schema entries to dataclass entries
+    entries = [
+        RosterEntry(
+            first_name=e.first_name,
+            last_name=e.last_name,
+            student_id=e.student_id,
+            username=e.username,
+            password=e.password,
+            status=e.status,
+            message=e.message,
+        )
+        for e in payload.entries
+    ]
+    
+    # Import
+    result = import_roster(entries, term=payload.term)
+    
+    write_audit(
+        db,
+        actor_user_id=current_user_id,
+        event_type="admin.roster.import",
+        entity_type="roster",
+        entity_id=None,
+        status="success" if result.failed_count == 0 else "partial",
+        metadata={
+            "term": payload.term,
+            "created_count": result.created_count,
+            "failed_count": result.failed_count,
+            "skipped_count": result.skipped_count,
+        },
+    )
+    
+    return RosterImportResponse(
+        results=[
+            RosterImportResultItem(
+                username=r.username,
+                status=r.status,
+                message=r.message,
+            )
+            for r in result.results
+        ],
+        created_count=result.created_count,
+        failed_count=result.failed_count,
+        skipped_count=result.skipped_count,
     )

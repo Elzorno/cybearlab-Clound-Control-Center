@@ -122,3 +122,42 @@ class AuditEventResponse(BaseModel):
 
 class AuditListResponse(BaseModel):
     items: list[AuditEventResponse]
+
+
+# ============================================================
+# Roster Import Schemas
+# ============================================================
+
+class RosterEntryPreview(BaseModel):
+    first_name: str
+    last_name: str
+    student_id: str
+    username: str
+    password: str
+    status: str  # "pending", "skip"
+    message: str
+
+
+class RosterPreviewResponse(BaseModel):
+    entries: list[RosterEntryPreview]
+    errors: list[str]
+    valid_count: int
+    skip_count: int
+
+
+class RosterImportRequest(BaseModel):
+    entries: list[RosterEntryPreview]
+    term: str | None = Field(default=None, pattern=r"^[A-Za-z0-9._-]{2,20}$")
+
+
+class RosterImportResultItem(BaseModel):
+    username: str
+    status: str  # "created", "failed", "skipped"
+    message: str
+
+
+class RosterImportResponse(BaseModel):
+    results: list[RosterImportResultItem]
+    created_count: int
+    failed_count: int
+    skipped_count: int

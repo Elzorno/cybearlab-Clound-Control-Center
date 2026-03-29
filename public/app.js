@@ -128,6 +128,7 @@
     "/admin": "admin",
     "/reports": "reports",
     "/settings": "settings",
+    "/system": "system",
   };
 
   function getRouteFromHash() {
@@ -157,6 +158,7 @@
     // Fire view-specific init
     if (route === "overview") loadOverview();
     if (route === "reports") loadReports();
+    if (route === "system") loadSystemView();
   }
 
   function handleRouteChange() {
@@ -658,6 +660,671 @@
   }
 
   // ============================================================
+  // Roster Import
+  // ============================================================
+  let rosterPreviewData = null;
+
+  function setupRosterUpload() {
+    const uploadArea = $("#rosterUploadArea");
+    const fileInput = $("#rosterFileInput");
+
+    // Drag and drop
+    uploadArea.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      uploadArea.classList.add("dragover");
+    });
+
+    uploadArea.addEventListener("dragleave", () => {
+      uploadArea.classList.remove("dragover");
+    });
+
+    uploadArea.addEventListener("drop", (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove("dragover");
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        handleRosterFile(files[0]);
+      }
+    });
+
+    // File input change
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files.length > 0) {
+        handleRosterFile(fileInput.files[0]);
+      }
+    });
+
+    // Import button
+    $("#rosterImportBtn").addEventListener("click", handleRosterImport);
+
+    // Reset button
+    $("#rosterResetBtn").addEventListener("click", resetRosterUI);
+  }
+
+  async function handleRosterFile(file) {
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      alert("Please upload a CSV file.");
+      return;
+    }
+
+    // Show loading state
+    $("#rosterUploadArea").classList.add("loading");
+    
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(resolveUrl("/admin/roster/preview"), {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(`Error: ${data.detail || "Failed to parse roster"}`);
+        return;
+      }
+
+      if (data.errors?.length) {
+        alert(`CSV Errors:\n${data.errors.join("\n")}`);
+        return;
+      }
+
+      // Store preview data
+      rosterPreviewData = data;
+      
+      // Show preview
+      renderRosterPreview(data);
+    } catch (err) {
+      alert(`Upload failed: ${err.message}`);
+    } finally {
+      $("#rosterUploadArea").classList.remove("loading");
+    }
+  }
+
+  function renderRosterPreview(data) {
+    // Hide upload, show preview
+    $("#rosterUploadArea").classList.add("hidden");
+    $("#rosterTermRow").classList.remove("hidden");
+    $("#rosterPreview").classList.remove("hidden");
+
+    // Update count
+    $("#rosterPreviewCount").textContent = `(${data.valid_count} valid, ${data.skip_count} skipped)`;
+
+    // Render table
+    const tbody = $("#rosterPreviewBody");
+    tbody.innerHTML = data.entries
+      .map((e) => {
+        const statusClass = e.status === "pending" ? "ok" : "warn";
+        return `
+          <tr class="${e.status === "skip" ? "row-skip" : ""}">
+            <td>${escapeHtml(e.first_name)}</td>
+            <td>${escapeHtml(e.last_name)}</td>
+            <td>${escapeHtml(e.student_id)}</td>
+            <td class="arrow-cell">→</td>
+            <td><code>${escapeHtml(e.username || "—")}</code></td>
+            <td><code>${escapeHtml(e.password || "—")}</code></td>
+            <td><span class="status-badge ${statusClass}">${e.status}</span>${e.message ? ` <span class="muted small">${escapeHtml(e.message)}</span>` : ""}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    // Enable/disable import button
+    $("#rosterImportBtn").disabled = data.valid_count === 0;
+  }
+
+  async function handleRosterImport() {
+    if (!rosterPreviewData || rosterPreviewData.valid_count === 0) {
+      alert("No valid entries to import.");
+      return;
+    }
+
+    const term = $("#rosterTerm").value.trim() || null;
+    
+    // Hide preview, show progress
+    $("#rosterPreview").classList.add("hidden");
+    $("#rosterTermRow").classList.add("hidden");
+    $("#rosterProgress").classList.remove("hidden");
+    $("#rosterProgressFill").style.width = "0%";
+    $("#rosterProgressText").textContent = "Starting import...";
+
+    try {
+      const payload = {
+        entries: rosterPreviewData.entries,
+        term: term,
+      };
+
+      // Simulate progress (backend doesn't stream, so we fake it)
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress = Math.min(progress + 5, 90);
+        $("#rosterProgressFill").style.width = `${progress}%`;
+        $("#rosterProgressText").textContent = `Importing... ${progress}%`;
+      }, 200);
+
+      const { res, data } = await api("/admin/roster/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      clearInterval(progressInterval);
+      $("#rosterProgressFill").style.width = "100%";
+
+      if (!res.ok) {
+        alert(`Import failed: ${data.detail || "Unknown error"}`);
+        resetRosterUI();
+        return;
+      }
+
+      // Show results
+      renderRosterResults(data);
+    } catch (err) {
+      alert(`Import failed: ${err.message}`);
+      resetRosterUI();
+    }
+  }
+
+  function renderRosterResults(data) {
+    // Hide progress, show results
+    $("#rosterProgress").classList.add("hidden");
+    $("#rosterResults").classList.remove("hidden");
+
+    // Update summary
+    $("#rosterCreatedCount").textContent = data.created_count;
+    $("#rosterSkippedCount").textContent = data.skipped_count;
+    $("#rosterFailedCount").textContent = data.failed_count;
+
+    // Render details table
+    const tbody = $("#rosterResultsBody");
+    tbody.innerHTML = data.results
+      .map((r) => {
+        const statusClass = r.status === "created" ? "ok" : r.status === "skipped" ? "warn" : "error";
+        return `
+          <tr>
+            <td><code>${escapeHtml(r.username)}</code></td>
+            <td><span class="status-badge ${statusClass}">${r.status}</span></td>
+            <td class="muted">${escapeHtml(r.message)}</td>
+          </tr>
+        `;
+      })
+      .join("");
+  }
+
+  function resetRosterUI() {
+    rosterPreviewData = null;
+    
+    // Reset file input
+    $("#rosterFileInput").value = "";
+    
+    // Reset visibility
+    $("#rosterUploadArea").classList.remove("hidden", "loading");
+    $("#rosterTermRow").classList.add("hidden");
+    $("#rosterPreview").classList.add("hidden");
+    $("#rosterProgress").classList.add("hidden");
+    $("#rosterResults").classList.add("hidden");
+    
+    // Clear tables
+    $("#rosterPreviewBody").innerHTML = "";
+    $("#rosterResultsBody").innerHTML = "";
+    $("#rosterTerm").value = "";
+  }
+
+  // ============================================================
+  // System Monitoring
+  // ============================================================
+  let logWebSocket = null;
+  let systemRefreshInterval = null;
+
+  async function loadSystemView() {
+    // Stop any existing refresh
+    if (systemRefreshInterval) {
+      clearInterval(systemRefreshInterval);
+    }
+
+    // Initial load
+    await refreshSystemStats();
+    await loadServices();
+    await loadLogs();
+    await loadBackups();
+    await loadBackupTerms();
+
+    // Auto-refresh every 10 seconds
+    systemRefreshInterval = setInterval(refreshSystemStats, 10000);
+
+    // Setup sub-tabs
+    setupSystemTabs();
+  }
+
+  function setupSystemTabs() {
+    $$(".sys-tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = btn.dataset.sysTab;
+        
+        // Update active tab
+        $$(".sys-tab-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        
+        // Show correct panel
+        $$(".sys-panel").forEach((p) => p.classList.add("hidden"));
+        $(`#sys${tab.charAt(0).toUpperCase() + tab.slice(1)}Panel`)?.classList.remove("hidden");
+        
+        // Stop log streaming if switching away
+        if (tab !== "logs" && logWebSocket) {
+          logWebSocket.close();
+          logWebSocket = null;
+        }
+      });
+    });
+  }
+
+  async function refreshSystemStats() {
+    try {
+      const { res, data } = await api("/system/stats");
+      if (!res.ok) return;
+
+      // Uptime
+      $("#sysUptime").textContent = data.uptime_formatted;
+
+      // CPU
+      const cpuPct = Math.round(data.cpu.percent);
+      $("#sysCpu").textContent = `${cpuPct}%`;
+      $("#sysCpuBar").style.width = `${cpuPct}%`;
+      $("#sysCpuBar").className = `stat-bar-fill ${cpuPct > 80 ? 'high' : cpuPct > 50 ? 'mid' : 'low'}`;
+
+      // Memory
+      const memPct = Math.round(data.memory.percent);
+      $("#sysMemory").textContent = `${data.memory.used_formatted} / ${data.memory.total_formatted}`;
+      $("#sysMemoryBar").style.width = `${memPct}%`;
+      $("#sysMemoryBar").className = `stat-bar-fill ${memPct > 80 ? 'high' : memPct > 50 ? 'mid' : 'low'}`;
+
+      // Disk (first/main disk)
+      if (data.disks.length > 0) {
+        const disk = data.disks[0];
+        const diskPct = Math.round(disk.percent);
+        $("#sysDisk").textContent = `${disk.used_formatted} / ${disk.total_formatted}`;
+        $("#sysDiskBar").style.width = `${diskPct}%`;
+        $("#sysDiskBar").className = `stat-bar-fill ${diskPct > 80 ? 'high' : diskPct > 50 ? 'mid' : 'low'}`;
+      }
+
+      // Processes
+      renderProcesses(data.top_processes);
+    } catch (err) {
+      console.error("Failed to load system stats:", err);
+    }
+  }
+
+  function renderProcesses(processes) {
+    const tbody = $("#processesBody");
+    if (!processes?.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted">No process data.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = processes
+      .map((p) => `
+        <tr>
+          <td>${p.pid}</td>
+          <td>${escapeHtml(p.name)}</td>
+          <td>${escapeHtml(p.username)}</td>
+          <td>${p.cpu_percent.toFixed(1)}%</td>
+          <td>${p.memory_percent.toFixed(1)}%</td>
+          <td><span class="status-badge ${p.status === 'running' ? 'ok' : 'warn'}">${p.status}</span></td>
+        </tr>
+      `)
+      .join("");
+  }
+
+  async function loadServices() {
+    try {
+      const { res, data } = await api("/system/services");
+      if (!res.ok) return;
+
+      const grid = $("#servicesGrid");
+      if (!data?.length) {
+        grid.innerHTML = '<p class="muted">No services found.</p>';
+        return;
+      }
+
+      grid.innerHTML = data
+        .map((s) => `
+          <div class="service-card ${s.status === 'running' ? 'running' : 'stopped'}">
+            <div class="service-info">
+              <span class="service-status-dot"></span>
+              <span class="service-name">${escapeHtml(s.display_name)}</span>
+            </div>
+            <div class="service-meta">
+              ${s.uptime ? `<span class="service-uptime">${s.uptime}</span>` : ''}
+              ${s.memory_mb ? `<span class="service-memory">${s.memory_mb} MB</span>` : ''}
+            </div>
+            <div class="service-actions">
+              ${s.status === 'running' 
+                ? `<button class="btn btn-xs" onclick="app.controlService('${s.name}', 'restart')">Restart</button>
+                   <button class="btn btn-xs btn-danger" onclick="app.controlService('${s.name}', 'stop')">Stop</button>`
+                : `<button class="btn btn-xs primary" onclick="app.controlService('${s.name}', 'start')">Start</button>`
+              }
+            </div>
+          </div>
+        `)
+        .join("");
+    } catch (err) {
+      console.error("Failed to load services:", err);
+    }
+  }
+
+  async function controlService(serviceName, action) {
+    if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} ${serviceName}?`)) return;
+
+    try {
+      const { res, data } = await api(`/system/services/${serviceName}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+
+      if (res.ok) {
+        alert(data.message);
+        loadServices();
+      } else {
+        alert(`Failed: ${data.detail || data.message || "Unknown error"}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  }
+
+  async function loadLogs() {
+    try {
+      const { res, data } = await api("/system/logs");
+      if (!res.ok) return;
+
+      const select = $("#logSelect");
+      select.innerHTML = '<option value="">Select a log file...</option>' +
+        data
+          .filter((l) => l.exists)
+          .map((l) => `<option value="${l.key}">${escapeHtml(l.name)} (${l.size_formatted})</option>`)
+          .join("");
+    } catch (err) {
+      console.error("Failed to load logs:", err);
+    }
+  }
+
+  async function viewLog(logKey, lines = 100) {
+    if (!logKey) return;
+
+    try {
+      const { res, data } = await api(`/system/logs/${logKey}?lines=${lines}`);
+      if (!res.ok) {
+        $("#logOutput").textContent = `Error: ${data.detail || "Failed to load log"}`;
+        return;
+      }
+
+      $("#logOutput").textContent = data.content || "(empty)";
+      // Scroll to bottom
+      $("#logOutput").scrollTop = $("#logOutput").scrollHeight;
+    } catch (err) {
+      $("#logOutput").textContent = `Error: ${err.message}`;
+    }
+  }
+
+  async function searchLog(logKey, pattern) {
+    if (!logKey || !pattern) return;
+
+    try {
+      const { res, data } = await api(`/system/logs/${logKey}/search?pattern=${encodeURIComponent(pattern)}`);
+      if (!res.ok) {
+        $("#logOutput").textContent = `Error: ${data.detail || "Search failed"}`;
+        return;
+      }
+
+      $("#logOutput").textContent = data.content || "(no matches)";
+    } catch (err) {
+      $("#logOutput").textContent = `Error: ${err.message}`;
+    }
+  }
+
+  function startLogStream(logKey) {
+    if (logWebSocket) {
+      logWebSocket.close();
+    }
+
+    const wsBase = currentApiBase.replace(/^http/, "ws");
+    const wsUrl = `${wsBase}/system/logs/${logKey}/stream`;
+
+    try {
+      logWebSocket = new WebSocket(wsUrl);
+      $("#logOutput").textContent = "Connecting to live stream...\\n";
+      $("#logStreamBtn").textContent = "Stop Stream";
+      $("#logStreamBtn").classList.add("streaming");
+
+      logWebSocket.onmessage = (event) => {
+        const output = $("#logOutput");
+        output.textContent += event.data;
+        // Auto-scroll
+        output.scrollTop = output.scrollHeight;
+        // Limit buffer
+        if (output.textContent.length > 500000) {
+          output.textContent = output.textContent.slice(-400000);
+        }
+      };
+
+      logWebSocket.onclose = () => {
+        $("#logStreamBtn").textContent = "Live Stream";
+        $("#logStreamBtn").classList.remove("streaming");
+        logWebSocket = null;
+      };
+
+      logWebSocket.onerror = () => {
+        $("#logOutput").textContent += "\\n[WebSocket error - stream ended]\\n";
+      };
+    } catch (err) {
+      $("#logOutput").textContent = `WebSocket error: ${err.message}`;
+    }
+  }
+
+  function stopLogStream() {
+    if (logWebSocket) {
+      logWebSocket.close();
+      logWebSocket = null;
+    }
+  }
+
+  async function loadBackups() {
+    try {
+      const { res, data } = await api("/system/backups");
+      if (!res.ok) return;
+
+      const tbody = $("#backupsBody");
+      if (!data?.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="muted">No backups found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data
+        .map((b) => `
+          <tr>
+            <td><code>${escapeHtml(b.filename)}</code></td>
+            <td><span class="badge">${b.backup_type}</span></td>
+            <td>${b.size_formatted}</td>
+            <td>${new Date(b.created_at).toLocaleString()}</td>
+            <td>
+              <button class="btn btn-xs" onclick="app.downloadBackup('${escapeHtml(b.filename)}')">Download</button>
+              <button class="btn btn-xs btn-danger" onclick="app.deleteBackup('${escapeHtml(b.filename)}')">Delete</button>
+            </td>
+          </tr>
+        `)
+        .join("");
+    } catch (err) {
+      console.error("Failed to load backups:", err);
+    }
+  }
+
+  async function loadBackupTerms() {
+    try {
+      const { res, data } = await api("/system/backups/terms");
+      if (!res.ok) return;
+
+      const select = $("#backupTerm");
+      select.innerHTML = '<option value="">Select term...</option>' +
+        data.terms.map((t) => `<option value="${t}">${t}</option>`).join("");
+    } catch (err) {
+      console.error("Failed to load terms:", err);
+    }
+  }
+
+  async function loadBackupStudents(term) {
+    try {
+      const { res, data } = await api(`/system/backups/terms/${term}/students`);
+      if (!res.ok) return;
+
+      const select = $("#backupStudent");
+      select.innerHTML = '<option value="">Select student...</option>' +
+        data.students.map((s) => `<option value="${s}">${s}</option>`).join("");
+    } catch (err) {
+      console.error("Failed to load students:", err);
+    }
+  }
+
+  async function createBackup() {
+    const backupType = $("#backupType").value;
+    const term = $("#backupTerm").value;
+    const student = $("#backupStudent").value;
+
+    if (backupType === "term" && !term) {
+      alert("Please select a term.");
+      return;
+    }
+    if (backupType === "student" && (!term || !student)) {
+      alert("Please select a term and student.");
+      return;
+    }
+
+    // Show progress
+    $("#backupProgress").classList.remove("hidden");
+    $("#backupProgressFill").style.width = "0%";
+    $("#backupProgressText").textContent = "Creating backup...";
+    $("#createBackupBtn").disabled = true;
+
+    // Fake progress since backend doesn't stream
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress = Math.min(progress + 3, 90);
+      $("#backupProgressFill").style.width = `${progress}%`;
+    }, 500);
+
+    try {
+      const { res, data } = await api("/system/backups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ backup_type: backupType, term, student }),
+      });
+
+      clearInterval(progressInterval);
+      $("#backupProgressFill").style.width = "100%";
+
+      if (res.ok) {
+        $("#backupProgressText").textContent = `Backup created: ${data.filename} (${data.size_formatted})`;
+        await loadBackups();
+      } else {
+        $("#backupProgressText").textContent = `Failed: ${data.detail || "Unknown error"}`;
+      }
+    } catch (err) {
+      clearInterval(progressInterval);
+      $("#backupProgressText").textContent = `Error: ${err.message}`;
+    } finally {
+      $("#createBackupBtn").disabled = false;
+      setTimeout(() => {
+        $("#backupProgress").classList.add("hidden");
+      }, 3000);
+    }
+  }
+
+  async function downloadBackup(filename) {
+    try {
+      const url = resolveUrl(`/system/backups/${encodeURIComponent(filename)}/download`);
+      const fullUrl = url + (url.includes("?") ? "&" : "?") + `token=${token}`;
+      window.open(fullUrl, "_blank");
+    } catch (err) {
+      alert(`Download error: ${err.message}`);
+    }
+  }
+
+  async function deleteBackup(filename) {
+    if (!confirm(`Delete backup "${filename}"?`)) return;
+
+    try {
+      const { res, data } = await api(`/system/backups/${encodeURIComponent(filename)}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        alert("Backup deleted.");
+        loadBackups();
+      } else {
+        alert(`Failed: ${data.detail || data.message || "Unknown error"}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  }
+
+  function setupSystemEventListeners() {
+    // Refresh buttons
+    $("#refreshServicesBtn")?.addEventListener("click", loadServices);
+    $("#refreshProcessesBtn")?.addEventListener("click", refreshSystemStats);
+
+    // Log controls
+    $("#logSelect")?.addEventListener("change", (e) => {
+      const logKey = e.target.value;
+      if (logKey) {
+        viewLog(logKey);
+      }
+    });
+
+    $("#logSearchBtn")?.addEventListener("click", () => {
+      const logKey = $("#logSelect").value;
+      const pattern = $("#logSearch").value.trim();
+      if (logKey && pattern) {
+        searchLog(logKey, pattern);
+      }
+    });
+
+    $("#logStreamBtn")?.addEventListener("click", () => {
+      const logKey = $("#logSelect").value;
+      if (!logKey) {
+        alert("Select a log file first.");
+        return;
+      }
+      if (logWebSocket) {
+        stopLogStream();
+      } else {
+        startLogStream(logKey);
+      }
+    });
+
+    // Backup controls
+    $("#backupType")?.addEventListener("change", (e) => {
+      const type = e.target.value;
+      $("#backupTerm").classList.toggle("hidden", type === "full");
+      $("#backupStudent").classList.toggle("hidden", type !== "student");
+    });
+
+    $("#backupTerm")?.addEventListener("change", (e) => {
+      const term = e.target.value;
+      if (term && $("#backupType").value === "student") {
+        loadBackupStudents(term);
+      }
+    });
+
+    $("#createBackupBtn")?.addEventListener("click", createBackup);
+  }
+
+  // ============================================================
   // Event Bindings
   // ============================================================
   function bindEvents() {
@@ -679,6 +1346,12 @@
     // Admin
     setupAdminTabs();
     $("#adminSubmitBtn").addEventListener("click", handleAdminAction);
+
+    // Roster Import
+    setupRosterUpload();
+
+    // System Monitoring
+    setupSystemEventListeners();
 
     // Reports
     $("#filterBtn").addEventListener("click", () => {
@@ -722,6 +1395,9 @@
   // Expose needed functions globally
   window.app = {
     showRunDetail,
+    controlService,
+    downloadBackup,
+    deleteBackup,
   };
 
   // Start
