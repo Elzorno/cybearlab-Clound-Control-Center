@@ -25,6 +25,46 @@ function apiBase() {
   return inferred;
 }
 
+async function probeApiBase(base) {
+  try {
+    const res = await fetch(`${base.replace(/\/$/, "")}/health`, { method: "GET" });
+    if (!res.ok) return false;
+    const text = await res.text();
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      return false;
+    }
+    return typeof data === "object" && data !== null && typeof data.status === "string";
+  } catch {
+    return false;
+  }
+}
+
+async function autoConfigureApiBase() {
+  const current = normalizedBase(apiBaseInput.value || "");
+  if (current) return;
+
+  const origin = window.location.origin;
+  const host = window.location.hostname;
+  const proto = window.location.protocol;
+  const candidates = [
+    `${origin}/api`,
+    `${proto}//${host}:8000`,
+    origin,
+  ];
+
+  for (const candidate of candidates) {
+    if (await probeApiBase(candidate)) {
+      apiBaseInput.value = candidate;
+      return;
+    }
+  }
+
+  apiBaseInput.value = inferApiBase();
+}
+
 function setStatus(text, kind = "neutral") {
   statusPill.textContent = text;
   statusPill.className = `pill ${kind}`;
@@ -69,7 +109,11 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
     token = data.access_token || "";
     if (!token) {
       setStatus("Login failed", "warn");
-      alert("Login response did not include a token.");
+      const snippet =
+        typeof data === "object" && data !== null
+          ? JSON.stringify(data).slice(0, 300)
+          : String(data).slice(0, 300);
+      alert(`Login response did not include a token.\nResponse snippet: ${snippet}`);
       return;
     }
 
@@ -146,4 +190,4 @@ document.getElementById("runActionBtn").addEventListener("click", async () => {
 });
 
 setStatus("Not signed in", "neutral");
-apiBase();
+autoConfigureApiBase();
