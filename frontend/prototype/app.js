@@ -2,6 +2,7 @@ let token = "";
 
 const statusPill = document.getElementById("statusPill");
 const apiBaseInput = document.getElementById("apiBase");
+const loginOutput = document.getElementById("loginOutput");
 
 function inferApiBase() {
   const host = window.location.hostname;
@@ -95,7 +96,11 @@ function setStatus(text, kind = "neutral") {
 }
 
 async function fetchJson(url, options) {
-  const res = await fetch(url, options);
+  const timeoutMs = 12000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const res = await fetch(url, { ...options, signal: controller.signal });
+  clearTimeout(timer);
   const text = await res.text();
   let data;
   try {
@@ -116,6 +121,7 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
   const attempts = [];
+  loginOutput.textContent = "Signing in...";
 
   try {
     for (const base of candidateApiBases()) {
@@ -129,6 +135,7 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
         token = data.access_token;
         apiBaseInput.value = base;
         setStatus("Signed in", "ok");
+        loginOutput.textContent = `Signed in successfully.\nAPI base: ${base}\nToken length: ${token.length}`;
         return;
       }
 
@@ -141,14 +148,11 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
 
     token = "";
     setStatus("Login failed", "warn");
-    alert(
-      "Login failed on all detected API bases.\n\nTried:\n" +
-      attempts.join("\n")
-    );
+    loginOutput.textContent = "Login failed on all detected API bases.\n\n" + attempts.join("\n");
   } catch (err) {
     token = "";
     setStatus("API unreachable", "warn");
-    alert(`Could not reach API at ${apiBase()}. Update API Base URL.\n\n${err}`);
+    loginOutput.textContent = `Could not reach API.\nAPI base input: ${apiBaseInput.value || "(empty)"}\nError: ${err}`;
   }
 });
 

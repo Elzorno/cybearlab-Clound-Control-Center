@@ -37,6 +37,7 @@ declare(strict_types=1);
           <input id="password" class="input" type="password" value="change-me-now" />
         </label>
         <button id="loginBtn" class="btn primary">Sign in</button>
+        <pre id="loginOutput" class="inline-output">Waiting for sign in.</pre>
       </article>
 
       <article class="card glass">
