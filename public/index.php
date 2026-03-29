@@ -43,6 +43,7 @@ declare(strict_types=1);
         <a href="#/" class="nav-link" data-route="overview">Overview</a>
         <a href="#/grader" class="nav-link" data-route="grader">Auto-Grader</a>
         <a href="#/admin" class="nav-link" data-route="admin">Student Admin</a>
+        <a href="#/users" class="nav-link" data-route="users">Users</a>
         <a href="#/system" class="nav-link" data-route="system">System</a>
         <a href="#/reports" class="nav-link" data-route="reports">Reports</a>
         <a href="#/settings" class="nav-link" data-route="settings">Settings</a>
@@ -452,6 +453,86 @@ declare(strict_types=1);
           </div>
         </div>
       </article>
+    </section>
+
+    <!-- View: Users -->
+    <section id="view-users" class="view hidden">
+      <div class="view-header">
+        <h2>User Management</h2>
+        <p class="muted">Manage student accounts, quotas, and access</p>
+      </div>
+
+      <!-- Filters Bar -->
+      <div class="filters-bar card glass">
+        <div class="filter-group">
+          <label>Term
+            <select id="usersTermFilter" class="input">
+              <option value="">All Terms</option>
+            </select>
+          </label>
+          <label>Status
+            <select id="usersStatusFilter" class="input">
+              <option value="">All</option>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </label>
+          <label>Search
+            <input type="text" id="usersSearchInput" class="input" placeholder="Username...">
+          </label>
+        </div>
+        <div class="filter-actions">
+          <button id="refreshUsersBtn" class="btn btn-ghost">↻ Refresh</button>
+          <span id="usersCount" class="muted"></span>
+        </div>
+      </div>
+
+      <!-- Users Table -->
+      <article class="card glass">
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="selectAllUsers"></th>
+                <th>Username</th>
+                <th>Term</th>
+                <th>Status</th>
+                <th>Disk Usage</th>
+                <th>Files</th>
+                <th>Website</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <tr><td colspan="8" class="muted">Loading users...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Bulk Actions -->
+        <div id="usersBulkActions" class="bulk-actions hidden">
+          <span id="selectedUsersCount">0 selected</span>
+          <button class="btn btn-sm btn-danger" onclick="app.bulkSuspendUsers()">Suspend Selected</button>
+          <button class="btn btn-sm" onclick="app.bulkUnsuspendUsers()">Unsuspend Selected</button>
+        </div>
+      </article>
+
+      <!-- User Detail Modal -->
+      <div id="userDetailModal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3 id="userDetailTitle">User Details</h3>
+            <button class="btn-close" onclick="app.closeUserModal()">&times;</button>
+          </div>
+          <div class="modal-body" id="userDetailBody">
+            <!-- Populated dynamically -->
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="app.closeUserModal()">Close</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- View: Reports -->
