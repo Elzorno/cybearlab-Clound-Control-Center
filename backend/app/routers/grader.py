@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
+from ..db import SessionLocal
 from ..deps import get_current_user_id, get_db
 from ..models import GradeFeedbackItem, GradeRun, GradeSectionScore
 from ..schemas import GradeRequest, GradeResponse, GradeRunAccepted, GradeRunListItem, GradeRunListResponse
@@ -11,9 +12,37 @@ from ..services.grader_engine import run_grading
 router = APIRouter(prefix="/grader", tags=["Grader"])
 
 
+def _run_grading_task(run_id: str, actor_user_id: str) -> None:
+    db = SessionLocal()
+    try:
+        run = db.query(GradeRun).filter(GradeRun.id == run_id).first()
+        if not run:
+            return
+
+        try:
+            run_grading(db, run)
+            result_status = "success"
+        except Exception:
+            result_status = "failed"
+
+        db.refresh(run)
+        write_audit(
+            db,
+            actor_user_id=actor_user_id,
+            event_type="grader.run.create",
+            entity_type="grade_run",
+            entity_id=run.id,
+            status=result_status,
+            metadata={"url": run.input_url, "run_status": run.status},
+        )
+    finally:
+        db.close()
+
+
 @router.post("/runs", response_model=GradeRunAccepted, status_code=202)
 def create_grade_run(
     payload: GradeRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user_id: str = Depends(get_current_user_id),
 ) -> GradeRunAccepted:
@@ -29,19 +58,14 @@ def create_grade_run(
     db.commit()
     db.refresh(run)
 
-    try:
-        run_grading(db, run)
-        result_status = "success"
-    except Exception:
-        result_status = "failed"
-
+    background_tasks.add_task(_run_grading_task, run.id, current_user_id)
     write_audit(
         db,
         actor_user_id=current_user_id,
         event_type="grader.run.create",
         entity_type="grade_run",
         entity_id=run.id,
-        status=result_status,
+        status="accepted",
         metadata={"url": run.input_url, "run_status": run.status},
     )
     return GradeRunAccepted(run_id=run.id, status=run.status)

@@ -45,3 +45,9 @@ curl -sS -X POST http://127.0.0.1:8000/grader/runs \
 - Contract source: `docs/phase-0/03-api-contract-openapi.yaml`
 - DB schema source: `docs/phase-0/schema.sql`
 - Current persistence default: local SQLite file `backend/iscs1800.db` (set `DATABASE_URL` to use PostgreSQL).
+
+## Deployment on `admin.cybearlab.cloud`
+- Run the backend as a persistent systemd service bound to `127.0.0.1:8000`.
+- Proxy `/api/` from Nginx to `http://127.0.0.1:8000/` so the browser can use a same-origin API base.
+- Disable site-level Basic Auth on `/api/` so Bearer tokens can reach FastAPI without conflicting in the `Authorization` header.
+- Keep `public/api-proxy.php` as a fallback for environments where the reverse proxy is unavailable.

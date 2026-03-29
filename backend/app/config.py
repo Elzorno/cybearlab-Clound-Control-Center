@@ -1,4 +1,11 @@
 import os
+from pathlib import Path
+
+# Load .env file if present
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+if _env_path.exists():
+    from dotenv import load_dotenv
+    load_dotenv(_env_path)
 
 
 class Settings:
