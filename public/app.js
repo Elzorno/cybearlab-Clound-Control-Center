@@ -3,8 +3,14 @@ let token = "";
 const statusPill = document.getElementById("statusPill");
 const apiBaseInput = document.getElementById("apiBase");
 const loginOutput = document.getElementById("loginOutput");
+const PROXY_BASE = `${window.location.origin}/api-proxy.php`;
 
 function inferApiBase() {
+  // Prefer same-origin proxy first; it forwards to backend on localhost.
+  return PROXY_BASE;
+}
+
+function inferFallbackApiBase() {
   const host = window.location.hostname;
   if (host === "localhost" || host === "127.0.0.1") {
     return "http://127.0.0.1:8000";
@@ -33,6 +39,7 @@ function candidateApiBases() {
   const current = normalizedBase(apiBaseInput.value || "");
   const candidates = [
     current,
+    PROXY_BASE,
     `${origin}/api`,
     `${proto}//${host}:8000`,
     origin,
@@ -52,7 +59,10 @@ function candidateApiBases() {
 
 async function probeApiBase(base) {
   try {
-    const res = await fetch(`${base.replace(/\/$/, "")}/health`, { method: "GET" });
+    const url = base === PROXY_BASE
+      ? `${PROXY_BASE}?path=${encodeURIComponent("/health")}`
+      : `${base.replace(/\/$/, "")}/health`;
+    const res = await fetch(url, { method: "GET" });
     if (!res.ok) return false;
     const text = await res.text();
     let data = {};
@@ -76,6 +86,7 @@ async function autoConfigureApiBase() {
   const host = window.location.hostname;
   const proto = window.location.protocol;
   const candidates = [
+    PROXY_BASE,
     `${origin}/api`,
     `${proto}//${host}:8000`,
     origin,
@@ -87,6 +98,7 @@ async function autoConfigureApiBase() {
       return;
     }
   }
+  apiBaseInput.value = inferFallbackApiBase();
 }
 
 function setStatus(text, kind = "neutral") {
@@ -113,10 +125,17 @@ async function fetchJson(url, options) {
   }
 }
 
+function resolveUrl(base, path) {
+  if (normalizedBase(base) === normalizedBase(PROXY_BASE)) {
+    return `${PROXY_BASE}?path=${encodeURIComponent(path)}`;
+  }
+  return `${normalizedBase(base)}${path}`;
+}
+
 async function authedRequest(path, options = {}) {
   const headers = new Headers(options.headers || {});
   headers.set("Authorization", `Bearer ${token}`);
-  return fetchJson(`${apiBase()}${path}`, { ...options, headers });
+  return fetchJson(resolveUrl(apiBase(), path), { ...options, headers });
 }
 
 document.getElementById("loginBtn").addEventListener("click", async () => {
@@ -127,7 +146,7 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
 
   for (const base of candidateApiBases()) {
     try {
-      const { res, data } = await fetchJson(`${base}/auth/login`, {
+      const { res, data } = await fetchJson(resolveUrl(base, "/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
