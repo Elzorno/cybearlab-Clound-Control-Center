@@ -33,6 +33,14 @@ curl -sS -X POST http://127.0.0.1:8000/admin/uploads/roster \
   -F "roster=@./sample.xlsx"
 ```
 
+Run a grade (currently synchronous in request path):
+```bash
+curl -sS -X POST http://127.0.0.1:8000/grader/runs \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com"}'
+```
+
 ## Notes
 - Contract source: `docs/phase-0/03-api-contract-openapi.yaml`
 - DB schema source: `docs/phase-0/schema.sql`

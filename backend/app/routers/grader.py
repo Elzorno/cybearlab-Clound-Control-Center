@@ -3,9 +3,10 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
 from ..deps import get_current_user_id, get_db
-from ..models import GradeFeedbackItem, GradeRun
+from ..models import GradeFeedbackItem, GradeRun, GradeSectionScore
 from ..schemas import GradeRequest, GradeResponse, GradeRunAccepted, GradeRunListItem, GradeRunListResponse
 from ..services.audit import write_audit
+from ..services.grader_engine import run_grading
 
 router = APIRouter(prefix="/grader", tags=["Grader"])
 
@@ -28,14 +29,20 @@ def create_grade_run(
     db.commit()
     db.refresh(run)
 
+    try:
+        run_grading(db, run)
+        result_status = "success"
+    except Exception:
+        result_status = "failed"
+
     write_audit(
         db,
         actor_user_id=current_user_id,
         event_type="grader.run.create",
         entity_type="grade_run",
         entity_id=run.id,
-        status="success",
-        metadata={"url": run.input_url},
+        status=result_status,
+        metadata={"url": run.input_url, "run_status": run.status},
     )
     return GradeRunAccepted(run_id=run.id, status=run.status)
 
@@ -102,6 +109,15 @@ def get_grade_run(
         .order_by(GradeFeedbackItem.order_index.asc())
         .all()
     )
+    sections = db.query(GradeSectionScore).filter(GradeSectionScore.run_id == run_id).all()
+    sections_payload = {
+        s.section_key: {
+            "score": float(s.score),
+            "max_score": float(s.max_score),
+            "details": s.details_json,
+        }
+        for s in sections
+    }
 
     write_audit(
         db,
@@ -117,7 +133,7 @@ def get_grade_run(
         input_url=run.input_url,
         normalized_root=run.normalized_root,
         total_score=float(run.total_score) if run.total_score is not None else None,
-        sections={},
+        sections=sections_payload,
         summary_feedback=[x.feedback_text for x in feedback],
         started_at=run.started_at,
         finished_at=run.finished_at,
@@ -151,6 +167,7 @@ def export_grade_run(
         "input_url": run.input_url,
         "normalized_root": run.normalized_root,
         "total_score": float(run.total_score) if run.total_score is not None else None,
+        "error_message": run.error_message,
     }
 
     if format == "csv":

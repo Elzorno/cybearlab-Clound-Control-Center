@@ -86,6 +86,34 @@ class GradeFeedbackItem(Base):
     feedback_text: Mapped[str] = mapped_column(Text, nullable=False)
 
 
+class GradeDiscoveredPage(Base):
+    __tablename__ = "grade_discovered_pages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    run_id: Mapped[str] = mapped_column(String(36), ForeignKey("grade_runs.id"), nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    status_code: Mapped[int | None] = mapped_column(Integer)
+    is_html: Mapped[bool | None] = mapped_column(Boolean)
+    has_form: Mapped[bool | None] = mapped_column(Boolean)
+    has_table: Mapped[bool | None] = mapped_column(Boolean)
+    has_list: Mapped[bool | None] = mapped_column(Boolean)
+    has_media: Mapped[bool | None] = mapped_column(Boolean)
+
+
+class GradeValidatorMessage(Base):
+    __tablename__ = "grade_validator_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    run_id: Mapped[str] = mapped_column(String(36), ForeignKey("grade_runs.id"), nullable=False)
+    page_url: Mapped[str] = mapped_column(Text, nullable=False)
+    message_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    subtype: Mapped[str | None] = mapped_column(String(32))
+    line: Mapped[int | None] = mapped_column(Integer)
+    column_num: Mapped[int | None] = mapped_column(Integer)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    extract: Mapped[str | None] = mapped_column(Text)
+
+
 class AuditEvent(Base, TimestampMixin):
     __tablename__ = "audit_events"
 

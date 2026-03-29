@@ -21,6 +21,9 @@ class Settings:
     script_https_wildcard: str = os.getenv("SCRIPT_HTTPS_WILDCARD", "/usr/local/sbin/iscs1800-enable-https-wildcard")
     upload_root_dir: str = os.getenv("UPLOAD_ROOT_DIR", "/tmp/iscs1800/uploads")
     max_roster_upload_bytes: int = int(os.getenv("MAX_ROSTER_UPLOAD_BYTES", str(20 * 1024 * 1024)))
+    grader_max_pages: int = int(os.getenv("GRADER_MAX_PAGES", "30"))
+    grader_http_timeout_seconds: int = int(os.getenv("GRADER_HTTP_TIMEOUT_SECONDS", "20"))
+    grader_validator_endpoint: str = os.getenv("GRADER_VALIDATOR_ENDPOINT", "https://validator.w3.org/nu/")
 
 
 settings = Settings()
