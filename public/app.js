@@ -897,17 +897,18 @@
     // Auto-refresh every 10 seconds
     systemRefreshInterval = setInterval(refreshSystemStats, 10000);
 
-    // Setup sub-tabs
+    // Setup sub-tabs (within the system view)
     setupSystemTabs();
   }
 
   function setupSystemTabs() {
-    $$(".sys-tab-btn").forEach((btn) => {
+    // Use tabs within #view-system to avoid conflict with admin tabs
+    $$("#view-system .tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const tab = btn.dataset.sysTab;
         
         // Update active tab
-        $$(".sys-tab-btn").forEach((b) => b.classList.remove("active"));
+        $$("#view-system .tab-btn").forEach((b) => b.classList.remove("active"));
         btn.classList.add("active");
         
         // Show correct panel
@@ -928,20 +929,24 @@
       const { res, data } = await api("/system/stats");
       if (!res.ok) return;
 
-      // Uptime
+      // Uptime + load average
       $("#sysUptime").textContent = data.uptime_formatted;
+      const loadEl = $("#sysLoadAvg");
+      if (loadEl && data.cpu.load_avg) {
+        loadEl.textContent = `Load: ${data.cpu.load_avg.map(l => l.toFixed(2)).join(", ")}`;
+      }
 
       // CPU
       const cpuPct = Math.round(data.cpu.percent);
       $("#sysCpu").textContent = `${cpuPct}%`;
       $("#sysCpuBar").style.width = `${cpuPct}%`;
-      $("#sysCpuBar").className = `stat-bar-fill ${cpuPct > 80 ? 'high' : cpuPct > 50 ? 'mid' : 'low'}`;
+      $("#sysCpuBar").className = `health-bar-fill ${cpuPct > 80 ? 'high' : cpuPct > 50 ? 'mid' : 'low'}`;
 
       // Memory
       const memPct = Math.round(data.memory.percent);
       $("#sysMemory").textContent = `${data.memory.used_formatted} / ${data.memory.total_formatted}`;
       $("#sysMemoryBar").style.width = `${memPct}%`;
-      $("#sysMemoryBar").className = `stat-bar-fill ${memPct > 80 ? 'high' : memPct > 50 ? 'mid' : 'low'}`;
+      $("#sysMemoryBar").className = `health-bar-fill ${memPct > 80 ? 'high' : memPct > 50 ? 'mid' : 'low'}`;
 
       // Disk (first/main disk)
       if (data.disks.length > 0) {
@@ -949,7 +954,7 @@
         const diskPct = Math.round(disk.percent);
         $("#sysDisk").textContent = `${disk.used_formatted} / ${disk.total_formatted}`;
         $("#sysDiskBar").style.width = `${diskPct}%`;
-        $("#sysDiskBar").className = `stat-bar-fill ${diskPct > 80 ? 'high' : diskPct > 50 ? 'mid' : 'low'}`;
+        $("#sysDiskBar").className = `health-bar-fill ${diskPct > 80 ? 'high' : diskPct > 50 ? 'mid' : 'low'}`;
       }
 
       // Processes
@@ -1307,11 +1312,19 @@
       }
     });
 
-    // Backup controls
+    // View Log button (similar to logSelect change but explicit)
+    $("#logViewBtn")?.addEventListener("click", () => {
+      const logKey = $("#logSelect").value;
+      if (logKey) {
+        viewLog(logKey);
+      }
+    });
+
+    // Backup controls - toggle label wrappers
     $("#backupType")?.addEventListener("change", (e) => {
       const type = e.target.value;
-      $("#backupTerm").classList.toggle("hidden", type === "full");
-      $("#backupStudent").classList.toggle("hidden", type !== "student");
+      $("#backupTermLabel")?.classList.toggle("hidden", type === "full");
+      $("#backupStudentLabel")?.classList.toggle("hidden", type !== "student");
     });
 
     $("#backupTerm")?.addEventListener("change", (e) => {

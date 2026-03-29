@@ -306,130 +306,151 @@ declare(strict_types=1);
     <!-- View: System Monitoring -->
     <section id="view-system" class="view hidden">
       <div class="view-header">
-        <h2>System Monitoring</h2>
+        <h2>System</h2>
         <p class="muted">Server health, services, logs, and backups</p>
       </div>
       
-      <!-- System Stats Cards -->
-      <div class="grid-4">
+      <!-- System Stats Cards - matches Overview pattern -->
+      <div class="grid-2">
+        <article class="card glass">
+          <h3>Server Health</h3>
+          <div class="health-stats">
+            <div class="health-stat">
+              <div class="health-stat-header">
+                <span class="health-stat-label">CPU</span>
+                <span id="sysCpu" class="health-stat-value">—</span>
+              </div>
+              <div class="health-bar"><div id="sysCpuBar" class="health-bar-fill"></div></div>
+            </div>
+            <div class="health-stat">
+              <div class="health-stat-header">
+                <span class="health-stat-label">Memory</span>
+                <span id="sysMemory" class="health-stat-value">—</span>
+              </div>
+              <div class="health-bar"><div id="sysMemoryBar" class="health-bar-fill"></div></div>
+            </div>
+            <div class="health-stat">
+              <div class="health-stat-header">
+                <span class="health-stat-label">Disk</span>
+                <span id="sysDisk" class="health-stat-value">—</span>
+              </div>
+              <div class="health-bar"><div id="sysDiskBar" class="health-bar-fill"></div></div>
+            </div>
+          </div>
+        </article>
         <article class="card glass stat-card">
           <p class="stat-label">Uptime</p>
           <p id="sysUptime" class="stat-value">—</p>
-        </article>
-        <article class="card glass stat-card">
-          <p class="stat-label">CPU Usage</p>
-          <p id="sysCpu" class="stat-value">—</p>
-          <div class="stat-bar"><div id="sysCpuBar" class="stat-bar-fill"></div></div>
-        </article>
-        <article class="card glass stat-card">
-          <p class="stat-label">Memory</p>
-          <p id="sysMemory" class="stat-value">—</p>
-          <div class="stat-bar"><div id="sysMemoryBar" class="stat-bar-fill"></div></div>
-        </article>
-        <article class="card glass stat-card">
-          <p class="stat-label">Disk</p>
-          <p id="sysDisk" class="stat-value">—</p>
-          <div class="stat-bar"><div id="sysDiskBar" class="stat-bar-fill"></div></div>
+          <p id="sysLoadAvg" class="muted small"></p>
         </article>
       </div>
 
-      <!-- System Sub-tabs -->
-      <div class="system-tabs">
-        <button class="sys-tab-btn active" data-sys-tab="services">Services</button>
-        <button class="sys-tab-btn" data-sys-tab="logs">Logs</button>
-        <button class="sys-tab-btn" data-sys-tab="processes">Processes</button>
-        <button class="sys-tab-btn" data-sys-tab="backups">Backups</button>
-      </div>
-
-      <!-- Services Panel -->
-      <article id="sysServicesPanel" class="card glass sys-panel">
-        <div class="panel-header">
-          <h3>System Services</h3>
-          <button id="refreshServicesBtn" class="btn btn-sm">Refresh</button>
+      <!-- System Sub-tabs - matches Admin view pattern -->
+      <article class="card glass">
+        <div class="action-tabs">
+          <button class="tab-btn active" data-sys-tab="services">Services</button>
+          <button class="tab-btn" data-sys-tab="logs">Logs</button>
+          <button class="tab-btn" data-sys-tab="processes">Processes</button>
+          <button class="tab-btn" data-sys-tab="backups">Backups</button>
         </div>
-        <div class="services-grid" id="servicesGrid">
-          <p class="muted">Loading services...</p>
-        </div>
-      </article>
 
-      <!-- Logs Panel -->
-      <article id="sysLogsPanel" class="card glass sys-panel hidden">
-        <div class="panel-header">
-          <h3>Log Viewer</h3>
-          <div class="log-controls">
-            <select id="logSelect" class="input">
-              <option value="">Select a log file...</option>
-            </select>
-            <input id="logSearch" class="input" placeholder="Search pattern..." />
-            <button id="logSearchBtn" class="btn btn-sm">Search</button>
-            <button id="logStreamBtn" class="btn btn-sm primary">Live Stream</button>
+        <!-- Services Panel -->
+        <div id="sysServicesPanel" class="sys-panel">
+          <div class="panel-actions">
+            <button id="refreshServicesBtn" class="btn btn-sm btn-ghost">↻ Refresh</button>
+          </div>
+          <div class="services-grid" id="servicesGrid">
+            <p class="muted">Loading services...</p>
           </div>
         </div>
-        <pre id="logOutput" class="output log-output">Select a log file to view its contents.</pre>
-      </article>
 
-      <!-- Processes Panel -->
-      <article id="sysProcessesPanel" class="card glass sys-panel hidden">
-        <div class="panel-header">
-          <h3>Top Processes</h3>
-          <button id="refreshProcessesBtn" class="btn btn-sm">Refresh</button>
+        <!-- Logs Panel -->
+        <div id="sysLogsPanel" class="sys-panel hidden">
+          <div class="panel-form">
+            <label>Log File
+              <select id="logSelect" class="input">
+                <option value="">Select a log file...</option>
+              </select>
+            </label>
+            <label>Search <span class="optional">(optional)</span>
+              <input id="logSearch" class="input" placeholder="Pattern to search..." />
+            </label>
+            <div class="btn-group">
+              <button id="logViewBtn" class="btn">View Log</button>
+              <button id="logSearchBtn" class="btn">Search</button>
+              <button id="logStreamBtn" class="btn primary">Live Stream</button>
+            </div>
+          </div>
+          <pre id="logOutput" class="output">Select a log file to view its contents.</pre>
         </div>
-        <table class="process-table">
-          <thead>
-            <tr>
-              <th>PID</th>
-              <th>Name</th>
-              <th>User</th>
-              <th>CPU%</th>
-              <th>MEM%</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="processesBody">
-            <tr><td colspan="6" class="muted">Loading...</td></tr>
-          </tbody>
-        </table>
-      </article>
 
-      <!-- Backups Panel -->
-      <article id="sysBackupsPanel" class="card glass sys-panel hidden">
-        <div class="panel-header">
-          <h3>Backups</h3>
-          <div class="backup-controls">
-            <select id="backupType" class="input">
-              <option value="full">Full Backup</option>
-              <option value="term">Term Backup</option>
-              <option value="student">Student Backup</option>
-            </select>
-            <select id="backupTerm" class="input hidden">
-              <option value="">Select term...</option>
-            </select>
-            <select id="backupStudent" class="input hidden">
-              <option value="">Select student...</option>
-            </select>
+        <!-- Processes Panel -->
+        <div id="sysProcessesPanel" class="sys-panel hidden">
+          <div class="panel-actions">
+            <button id="refreshProcessesBtn" class="btn btn-sm btn-ghost">↻ Refresh</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>PID</th>
+                  <th>Process</th>
+                  <th>User</th>
+                  <th>CPU</th>
+                  <th>Memory</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="processesBody">
+                <tr><td colspan="6" class="muted">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Backups Panel -->
+        <div id="sysBackupsPanel" class="sys-panel hidden">
+          <div class="panel-form panel-form-inline">
+            <label>Backup Type
+              <select id="backupType" class="input">
+                <option value="full">Full Backup</option>
+                <option value="term">Term Only</option>
+                <option value="student">Single Student</option>
+              </select>
+            </label>
+            <label id="backupTermLabel" class="hidden">Term
+              <select id="backupTerm" class="input">
+                <option value="">Select term...</option>
+              </select>
+            </label>
+            <label id="backupStudentLabel" class="hidden">Student
+              <select id="backupStudent" class="input">
+                <option value="">Select student...</option>
+              </select>
+            </label>
             <button id="createBackupBtn" class="btn primary">Create Backup</button>
           </div>
-        </div>
-        <div id="backupProgress" class="backup-progress hidden">
-          <div class="backup-progress-bar">
-            <div id="backupProgressFill" class="backup-progress-fill"></div>
+          <div id="backupProgress" class="progress-container hidden">
+            <div class="progress-bar"><div id="backupProgressFill" class="progress-fill"></div></div>
+            <p id="backupProgressText" class="muted small">Creating backup...</p>
           </div>
-          <p id="backupProgressText" class="muted">Creating backup...</p>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Backup</th>
+                  <th>Type</th>
+                  <th>Size</th>
+                  <th>Created</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="backupsBody">
+                <tr><td colspan="5" class="muted">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <table class="backups-table">
-          <thead>
-            <tr>
-              <th>Filename</th>
-              <th>Type</th>
-              <th>Size</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="backupsBody">
-            <tr><td colspan="5" class="muted">Loading...</td></tr>
-          </tbody>
-        </table>
       </article>
     </section>
 
