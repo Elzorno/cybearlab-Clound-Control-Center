@@ -8,3 +8,7 @@ Planned stack:
 
 Current production UI remains:
 - `public/index.php`
+
+Prototype UI:
+- `frontend/prototype/index.html`
+- Open directly in browser and point API base to running backend (default `http://127.0.0.1:8000`).
