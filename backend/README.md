@@ -13,6 +13,19 @@ Then open:
 - `http://127.0.0.1:8000/health`
 - `http://127.0.0.1:8000/docs`
 
+Default bootstrap login:
+- Username: `admin`
+- Password: `change-me-now`
+- Override with env vars: `BOOTSTRAP_ADMIN_USERNAME`, `BOOTSTRAP_ADMIN_PASSWORD`
+
+Quick login test:
+```bash
+curl -sS -X POST http://127.0.0.1:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"change-me-now"}'
+```
+
 ## Notes
 - Contract source: `docs/phase-0/03-api-contract-openapi.yaml`
 - DB schema source: `docs/phase-0/schema.sql`
+- Current persistence default: local SQLite file `backend/iscs1800.db` (set `DATABASE_URL` to use PostgreSQL).
