@@ -70,6 +70,7 @@ async function probeApiBase(base) {
 async function autoConfigureApiBase() {
   const current = normalizedBase(apiBaseInput.value || "");
   if (current) return;
+  apiBaseInput.value = inferApiBase();
 
   const origin = window.location.origin;
   const host = window.location.hostname;
@@ -86,8 +87,6 @@ async function autoConfigureApiBase() {
       return;
     }
   }
-
-  apiBaseInput.value = inferApiBase();
 }
 
 function setStatus(text, kind = "neutral") {
@@ -99,16 +98,19 @@ async function fetchJson(url, options) {
   const timeoutMs = 12000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const res = await fetch(url, { ...options, signal: controller.signal });
-  clearTimeout(timer);
-  const text = await res.text();
-  let data;
   try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { raw: text };
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    const text = await res.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { raw: text };
+    }
+    return { res, data };
+  } finally {
+    clearTimeout(timer);
   }
-  return { res, data };
 }
 
 async function authedRequest(path, options = {}) {
@@ -123,8 +125,8 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
   const attempts = [];
   loginOutput.textContent = "Signing in...";
 
-  try {
-    for (const base of candidateApiBases()) {
+  for (const base of candidateApiBases()) {
+    try {
       const { res, data } = await fetchJson(`${base}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -144,16 +146,18 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
           ? JSON.stringify(data).slice(0, 180)
           : String(data).slice(0, 180);
       attempts.push(`${base} -> ${res.status} ${snippet}`);
+    } catch (err) {
+      const errText = err && typeof err === "object" && "name" in err ? `${err.name}: ${err.message || ""}` : String(err);
+      attempts.push(`${base} -> network error: ${errText}`);
     }
-
-    token = "";
-    setStatus("Login failed", "warn");
-    loginOutput.textContent = "Login failed on all detected API bases.\n\n" + attempts.join("\n");
-  } catch (err) {
-    token = "";
-    setStatus("API unreachable", "warn");
-    loginOutput.textContent = `Could not reach API.\nAPI base input: ${apiBaseInput.value || "(empty)"}\nError: ${err}`;
   }
+
+  token = "";
+  setStatus("Login failed", "warn");
+  loginOutput.textContent =
+    "Login failed on all detected API bases.\n\n" +
+    `API base input: ${apiBaseInput.value || "(empty)"}\n` +
+    attempts.join("\n");
 });
 
 document.getElementById("gradeBtn").addEventListener("click", async () => {
