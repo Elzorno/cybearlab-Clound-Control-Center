@@ -1099,22 +1099,30 @@ label {
 /* Services Grid */
 .services-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
 }
 
 .service-card {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: var(--radius-sm);
-  background: rgba(0,0,0,0.02);
-  transition: background 0.15s;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .service-card:hover {
-  background: rgba(0,0,0,0.04);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.service-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .service-status-dot {
@@ -1132,31 +1140,35 @@ label {
 
 .service-card.stopped .service-status-dot {
   background: var(--low);
-}
-
-.service-info {
-  flex: 1;
-  min-width: 0;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
 }
 
 .service-name {
   font-weight: 600;
   font-size: 0.9rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
+  color: var(--ink);
 }
 
 .service-meta {
+  display: flex;
+  gap: 12px;
   font-size: 0.78rem;
   color: var(--muted);
-  margin-top: 2px;
+}
+
+.service-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .service-actions {
   display: flex;
-  gap: 6px;
-  flex-shrink: 0;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
 }
 
 .btn-xs {

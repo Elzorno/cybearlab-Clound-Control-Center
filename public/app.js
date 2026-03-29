@@ -999,13 +999,13 @@
       grid.innerHTML = data
         .map((s) => `
           <div class="service-card ${s.status === 'running' ? 'running' : 'stopped'}">
-            <div class="service-info">
+            <div class="service-header">
               <span class="service-status-dot"></span>
               <span class="service-name">${escapeHtml(s.display_name)}</span>
             </div>
             <div class="service-meta">
-              ${s.uptime ? `<span class="service-uptime">${s.uptime}</span>` : ''}
-              ${s.memory_mb ? `<span class="service-memory">${s.memory_mb} MB</span>` : ''}
+              ${s.memory_mb ? `<span>💾 ${s.memory_mb} MB</span>` : ''}
+              ${s.uptime ? `<span>⏱ ${s.uptime}</span>` : ''}
             </div>
             <div class="service-actions">
               ${s.status === 'running' 
