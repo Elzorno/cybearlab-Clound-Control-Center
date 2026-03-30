@@ -15,8 +15,7 @@ from ..config import settings
 
 # Configurable paths - adjust based on your server setup
 STUDENT_GROUP = "iscs1800-students"
-WEB_ROOT = Path("/srv/students")
-DEFAULT_TERM = "2026SP"
+HOME_BASE = Path("/home")
 
 
 @dataclass
@@ -148,23 +147,8 @@ def _get_last_login(username: str) -> Optional[str]:
 
 
 def get_terms() -> list[str]:
-    """List available terms from /srv/students directories."""
-    terms = []
-    
-    if not WEB_ROOT.exists():
-        return [DEFAULT_TERM]
-        
-    try:
-        for entry in WEB_ROOT.iterdir():
-            if entry.is_dir():
-                name = entry.name
-                # Term directories typically have year patterns like 2026SP, 2025FA
-                if any(c.isdigit() for c in name):
-                    terms.append(name)
-    except PermissionError:
-        pass
-    
-    return sorted(terms) if terms else [DEFAULT_TERM]
+    """Return default term (term-based separation removed)."""
+    return ["current"]
 
 
 def _get_student_group_gid() -> Optional[int]:
@@ -176,20 +160,15 @@ def _get_student_group_gid() -> Optional[int]:
 
 
 def list_users(term: Optional[str] = None) -> list[UserInfo]:
-    """List all student users from /home, with web content from /srv/students/TERM."""
+    """List all student users from /home with public_html in home directories."""
     users = []
-    home_base = Path("/home")
     student_gid = _get_student_group_gid()
     
-    # Use specified term or default
-    active_term = term or DEFAULT_TERM
-    web_term_path = WEB_ROOT / active_term
-    
-    if not home_base.exists():
+    if not HOME_BASE.exists():
         return users
     
     try:
-        for user_dir in home_base.iterdir():
+        for user_dir in HOME_BASE.iterdir():
             if not user_dir.is_dir():
                 continue
                 
@@ -225,13 +204,13 @@ def list_users(term: Optional[str] = None) -> list[UserInfo]:
             else:
                 disk_percent = 0
             
-            # Check public_html in web root (e.g., /srv/students/2026SP/username/public_html)
-            web_user_path = web_term_path / username / "public_html"
-            public_html_exists = web_user_path.exists() and web_user_path.is_dir()
+            # Check public_html in home directory
+            public_html_path = user_dir / "public_html"
+            public_html_exists = public_html_path.exists() and public_html_path.is_dir()
             
             users.append(UserInfo(
                 username=username,
-                term=active_term,
+                term="current",
                 uid=pw.pw_uid,
                 gid=pw.pw_gid,
                 home_dir=home_path,
@@ -257,9 +236,7 @@ def get_user_detail(username: str) -> Optional[UserDetail]:
         return None
     
     home_path = pw.pw_dir
-    
-    # Use default term (or could be passed as parameter)
-    term = DEFAULT_TERM
+    home_dir = Path(home_path)
     
     # Get disk usage
     disk_used, file_count = _get_dir_size(home_path)
@@ -282,20 +259,20 @@ def get_user_detail(username: str) -> Optional[UserDetail]:
     except (KeyError, OSError):
         pass
     
-    # Check public_html in web root (e.g., /srv/students/2026SP/username/public_html)
-    web_public_html = WEB_ROOT / term / username / "public_html"
-    public_html_exists = web_public_html.exists() and web_public_html.is_dir()
+    # Check public_html in home directory
+    public_html_path = home_dir / "public_html"
+    public_html_exists = public_html_path.exists() and public_html_path.is_dir()
     
     # Count files in public_html
     public_html_files = 0
     index_exists = False
     if public_html_exists:
-        _, public_html_files = _get_dir_size(str(web_public_html))
-        index_exists = (web_public_html / "index.html").exists() or (web_public_html / "index.htm").exists()
+        _, public_html_files = _get_dir_size(str(public_html_path))
+        index_exists = (public_html_path / "index.html").exists() or (public_html_path / "index.htm").exists()
     
     return UserDetail(
         username=username,
-        term=term,
+        term="current",
         uid=pw.pw_uid,
         gid=pw.pw_gid,
         home_dir=home_path,

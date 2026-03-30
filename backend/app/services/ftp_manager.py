@@ -19,8 +19,7 @@ from typing import List, Optional, Tuple
 # FTP configuration
 FTP_GROUP = "ftpusers"
 FTP_SHELL = "/usr/sbin/nologin"
-FTP_BASE_DIR = Path("/srv/students")
-DEFAULT_TERM = "2026SP"
+HOME_BASE = Path("/home")
 VSFTPD_USERLIST = Path("/etc/vsftpd/user_list")
 VSFTPD_CHROOT_LIST = Path("/etc/vsftpd/chroot_list")
 
@@ -107,11 +106,8 @@ def _run_command(cmd: List[str], sudo: bool = True) -> Tuple[bool, str]:
 
 def _get_ftp_home(parent_user: str, ftp_name: str = "") -> Path:
     """Get the FTP home directory for a user."""
-    base = FTP_BASE_DIR / DEFAULT_TERM / parent_user
-    if ftp_name:
-        # Sub-accounts can have subdirectory homes
-        return base
-    return base
+    # FTP users get access to /home/{parent_user}/public_html
+    return HOME_BASE / parent_user / "public_html"
 
 
 def _user_exists(username: str) -> bool:

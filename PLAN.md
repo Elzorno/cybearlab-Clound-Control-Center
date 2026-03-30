@@ -53,20 +53,29 @@ Transform the ISCS1800 student-hosting admin app into a full-featured web hostin
 - [x] Security Center — SSH keys, Fail2Ban management, UFW firewall, ModSecurity WAF
 - [x] SSL/TLS Management — Let's Encrypt certificates, list/request/renew/revoke/delete
 
-## Phase 7 — Multi-User, RBAC & Audit Hardening ⬅️ NEXT
-- [ ] Role-Based Access Control — roles (admin/reseller/user), permission matrix
-- [ ] Multi-tenant support — reseller accounts managing sub-users
-- [ ] Audit log hardening — immutable storage, export, retention policies
-- [ ] Session management — active sessions, force logout, 2FA/TOTP
-- [ ] API key management — generate/revoke tokens for automation
+## Phase 7 — Webroot Migration & Cleanup ✅
+Moved student webroots from `/srv/students/{term}/{user}/public_html` to `/home/{user}/public_html`:
+- [x] Created backup: `/root/backups/srv-students-backup-20260330-215630.tar.gz`
+- [x] Migrated all 15 students via rsync
+- [x] Updated all nginx configs (sed replacement)
+- [x] Updated `user_manager.py` to use home directory paths
+- [x] Removed `/srv/students` directory
+- [x] Removed term-based logic from codebase
 
-## Phase 8 — Production Hardening & DevOps
-- [ ] Observability — Prometheus metrics, health alerting (email/webhook)
-- [ ] Backup scheduling — automated policies, remote targets (S3/SFTP)
+## Phase 8 — Production & Documentation ⬅️ NEXT
 - [ ] Auto-updates — package checker, one-click OS/service updates
-- [ ] E2E test suite — Playwright/Cypress for critical workflows
-- [ ] Deployment automation — systemd, Nginx config gen, Docker option
-- [ ] Documentation — admin guide, API reference, in-app help
+- [ ] Deployment automation — systemd service, Nginx config generation
+- [ ] Documentation — admin guide, in-app help tooltips
+
+---
+
+## Removed from Scope
+The following features were deemed unnecessary for single-instructor use:
+- Multi-user / RBAC (only one instructor)
+- Multi-tenant / reseller accounts
+- API key management
+- 2FA/TOTP
+- Term-based student separation
 
 ---
 

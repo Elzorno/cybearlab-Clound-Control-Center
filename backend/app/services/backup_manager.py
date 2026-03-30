@@ -13,9 +13,9 @@ from pathlib import Path
 
 
 # Configuration
-STUDENT_BASE_DIR = "/srv/students"
+HOME_BASE = "/home"
 BACKUP_DIR = "/var/backups/cybearlab"
-DEFAULT_TERM = "2026SP"
+STUDENT_GROUP = "iscs1800-students"
 
 
 @dataclass
@@ -88,13 +88,13 @@ def get_backup_list() -> List[BackupInfo]:
 
 
 def create_full_backup() -> BackupResult:
-    """Create a full backup of all student directories."""
+    """Create a full backup of all student home directories."""
     ensure_backup_dir()
     
-    if not os.path.isdir(STUDENT_BASE_DIR):
+    if not os.path.isdir(HOME_BASE):
         return BackupResult(
             success=False,
-            message=f"Student directory not found: {STUDENT_BASE_DIR}"
+            message=f"Home directory not found: {HOME_BASE}"
         )
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -108,8 +108,8 @@ def create_full_backup() -> BackupResult:
         result = subprocess.run(
             [
                 "tar", "-czf", filepath,
-                "-C", os.path.dirname(STUDENT_BASE_DIR),
-                os.path.basename(STUDENT_BASE_DIR)
+                "-C", HOME_BASE,
+                "."
             ],
             capture_output=True,
             text=True,
@@ -147,70 +147,16 @@ def create_full_backup() -> BackupResult:
 
 
 def create_term_backup(term: str) -> BackupResult:
-    """Create a backup of a specific term's student directories."""
-    ensure_backup_dir()
-    
-    term_dir = os.path.join(STUDENT_BASE_DIR, term)
-    
-    if not os.path.isdir(term_dir):
-        return BackupResult(
-            success=False,
-            message=f"Term directory not found: {term_dir}"
-        )
-    
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"cybearlab_term_{term}_{timestamp}.tar.gz"
-    filepath = os.path.join(BACKUP_DIR, filename)
-    
-    start_time = datetime.now()
-    
-    try:
-        result = subprocess.run(
-            [
-                "tar", "-czf", filepath,
-                "-C", STUDENT_BASE_DIR,
-                term
-            ],
-            capture_output=True,
-            text=True,
-            timeout=1800,  # 30 minute timeout
-        )
-        
-        if result.returncode != 0:
-            return BackupResult(
-                success=False,
-                message=f"Backup failed: {result.stderr}"
-            )
-        
-        duration = (datetime.now() - start_time).total_seconds()
-        size = os.path.getsize(filepath)
-        
-        return BackupResult(
-            success=True,
-            message=f"Term backup for {term} created successfully",
-            filename=filename,
-            path=filepath,
-            size_bytes=size,
-            duration_seconds=duration,
-        )
-        
-    except subprocess.TimeoutExpired:
-        return BackupResult(
-            success=False,
-            message="Backup timed out after 30 minutes"
-        )
-    except Exception as e:
-        return BackupResult(
-            success=False,
-            message=f"Backup error: {str(e)}"
-        )
+    """Create a backup (term parameter ignored - kept for API compatibility)."""
+    # Terms removed - just create a full backup
+    return create_full_backup()
 
 
 def create_student_backup(term: str, username: str) -> BackupResult:
-    """Create a backup of a specific student's directory."""
+    """Create a backup of a specific student's home directory."""
     ensure_backup_dir()
     
-    student_dir = os.path.join(STUDENT_BASE_DIR, term, username)
+    student_dir = os.path.join(HOME_BASE, username)
     
     if not os.path.isdir(student_dir):
         return BackupResult(
@@ -219,7 +165,7 @@ def create_student_backup(term: str, username: str) -> BackupResult:
         )
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"cybearlab_student_{term}_{username}_{timestamp}.tar.gz"
+    filename = f"cybearlab_student_{username}_{timestamp}.tar.gz"
     filepath = os.path.join(BACKUP_DIR, filename)
     
     start_time = datetime.now()
@@ -228,7 +174,7 @@ def create_student_backup(term: str, username: str) -> BackupResult:
         result = subprocess.run(
             [
                 "tar", "-czf", filepath,
-                "-C", os.path.join(STUDENT_BASE_DIR, term),
+                "-C", HOME_BASE,
                 username
             ],
             capture_output=True,
@@ -308,32 +254,42 @@ def format_backup_size(size_bytes: int) -> str:
 
 
 def get_available_terms() -> List[str]:
-    """Get list of available terms (subdirectories in student base)."""
-    if not os.path.isdir(STUDENT_BASE_DIR):
-        return []
-    
-    terms = []
-    for name in os.listdir(STUDENT_BASE_DIR):
-        path = os.path.join(STUDENT_BASE_DIR, name)
-        if os.path.isdir(path) and not name.startswith('.'):
-            terms.append(name)
-    
-    terms.sort(reverse=True)
-    return terms
+    """Get list of available terms (returns 'current' since terms were removed)."""
+    return ["current"]
 
 
 def get_students_in_term(term: str) -> List[str]:
-    """Get list of students in a term."""
-    term_dir = os.path.join(STUDENT_BASE_DIR, term)
+    """Get list of students (term parameter ignored)."""
+    import grp
     
-    if not os.path.isdir(term_dir):
+    if not os.path.isdir(HOME_BASE):
         return []
     
+    # Get student group GID
+    try:
+        student_gid = grp.getgrnam(STUDENT_GROUP).gr_gid
+    except KeyError:
+        student_gid = None
+    
     students = []
-    for name in os.listdir(term_dir):
-        path = os.path.join(term_dir, name)
-        if os.path.isdir(path) and not name.startswith('.'):
-            students.append(name)
+    for name in os.listdir(HOME_BASE):
+        path = os.path.join(HOME_BASE, name)
+        if not os.path.isdir(path) or name.startswith('.'):
+            continue
+        # Skip system directories
+        if name in ['lost+found', 'ubuntu', 'root']:
+            continue
+        # Check if user belongs to student group
+        if student_gid is not None:
+            try:
+                import pwd
+                pw = pwd.getpwnam(name)
+                user_groups = os.getgrouplist(name, pw.pw_gid)
+                if student_gid not in user_groups and pw.pw_gid != student_gid:
+                    continue
+            except (KeyError, OSError):
+                continue
+        students.append(name)
     
     students.sort()
     return students

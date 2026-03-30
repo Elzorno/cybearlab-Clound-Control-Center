@@ -14,9 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-# Configurable paths - web root where student projects are
-WEB_ROOT = Path("/srv/students")
-DEFAULT_TERM = "2026SP"
+# Configurable paths - user home directories
+HOME_BASE = Path("/home")
 ALLOWED_TEXT_EXTENSIONS = {
     ".html", ".htm", ".css", ".js", ".json", ".xml", ".txt", ".md",
     ".php", ".py", ".sh", ".conf", ".cfg", ".ini", ".yaml", ".yml",
@@ -131,8 +130,8 @@ def _resolve_user_path(username: str, relative_path: str) -> Tuple[Path, Path]:
     Resolve a relative path within a user's web directory.
     Returns (full_path, user_root) or raises ValueError for invalid paths.
     """
-    # User's web directory under WEB_ROOT/TERM/username
-    user_root = WEB_ROOT / DEFAULT_TERM / username
+    # User's web directory: /home/{username}/public_html
+    user_root = HOME_BASE / username / "public_html"
     
     if not user_root.exists():
         raise ValueError(f"User directory not found: {username}")
@@ -718,5 +717,5 @@ def get_file_path(username: str, relative_path: str) -> Path:
 
 def get_user_root(username: str) -> Optional[Path]:
     """Get the root directory for a user, or None if not found."""
-    user_root = WEB_ROOT / DEFAULT_TERM / username
+    user_root = HOME_BASE / username / "public_html"
     return user_root if user_root.exists() else None
