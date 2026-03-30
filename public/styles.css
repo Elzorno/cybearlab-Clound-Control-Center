@@ -5,6 +5,7 @@
   --muted: #4a5c67;
   --line: #d5dde2;
   --glass: rgba(255, 255, 255, 0.76);
+  --surface: #ffffff;
   --ok: #1f7a55;
   --warn: #a45c16;
   --low: #b8363b;
@@ -778,6 +779,10 @@ label {
   max-width: 600px;
   max-height: 80vh;
   overflow: auto;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 24px;
 }
 
 .modal-header {
@@ -1442,6 +1447,12 @@ details[open] summary {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
+}
+
+/* Ensure user modal has solid background */
+#userDetailModal .modal-content {
+  background: #ffffff;
+  border: 1px solid var(--line);
 }
 
 .user-detail-item {
