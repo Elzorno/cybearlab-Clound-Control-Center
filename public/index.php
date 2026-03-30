@@ -139,7 +139,10 @@ declare(strict_types=1);
         <article class="card glass grader-input-card">
           <h3>Grade a Website</h3>
           <label>Site URL
-            <input id="gradeUrl" class="input" placeholder="https://student.example.com/project" />
+            <div class="input-with-action">
+              <input id="gradeUrl" class="input" placeholder="https://student.example.com/project" />
+              <button id="gradeBrowseBtn" class="btn btn-sm" type="button" title="Browse student files">📁</button>
+            </div>
           </label>
           <label>Student Username <span class="optional">(optional)</span>
             <input id="gradeStudent" class="input" placeholder="jsmith" />
@@ -211,6 +214,45 @@ declare(strict_types=1);
             <summary>Raw JSON Response</summary>
             <pre id="gradeRawJson" class="output"></pre>
           </details>
+        </div>
+      </div>
+
+      <!-- File Picker Modal -->
+      <div id="gradeFilePicker" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeGradeFilePicker()"></div>
+        <div class="modal-content modal-lg">
+          <div class="modal-header">
+            <h3>Select Student Project</h3>
+            <button onclick="app.closeGradeFilePicker()" class="btn-icon">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="picker-controls">
+              <label>Student
+                <select id="pickerUserSelect" class="input">
+                  <option value="">Select a student...</option>
+                </select>
+              </label>
+              <span id="pickerCurrentPath" class="files-path mono"></span>
+            </div>
+            <div class="picker-browser">
+              <div class="picker-toolbar">
+                <button id="pickerUpBtn" class="btn btn-sm" title="Go up">↑ Up</button>
+                <button id="pickerHomeBtn" class="btn btn-sm" title="Go to root">🏠 Home</button>
+                <span id="pickerBreadcrumb" class="breadcrumb"></span>
+              </div>
+              <div class="picker-list" id="pickerList">
+                <p class="muted">Select a student to browse their files.</p>
+              </div>
+            </div>
+            <div class="picker-preview">
+              <label>Preview URL</label>
+              <code id="pickerPreviewUrl" class="mono">—</code>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button onclick="app.closeGradeFilePicker()" class="btn">Cancel</button>
+            <button id="pickerSelectBtn" class="btn primary" disabled>Select This Folder</button>
+          </div>
         </div>
       </div>
     </section>

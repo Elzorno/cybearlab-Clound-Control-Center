@@ -2368,3 +2368,146 @@ details[open] summary {
   width: 18px;
   height: 18px;
 }
+
+/* ============================================================
+   Grader File Picker
+   ============================================================ */
+.input-with-action {
+  display: flex;
+  gap: 8px;
+}
+
+.input-with-action .input {
+  flex: 1;
+}
+
+.modal-lg .modal-content {
+  max-width: 800px;
+  width: 95%;
+}
+
+#gradeFilePicker .modal-content {
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+.picker-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.picker-controls label {
+  flex: 0 0 250px;
+}
+
+.picker-controls .files-path {
+  flex: 1;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.picker-browser {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex: 1;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.picker-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+}
+
+.picker-toolbar .breadcrumb {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.picker-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  min-height: 250px;
+  max-height: 350px;
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.picker-item:hover {
+  background: var(--surface-alt);
+}
+
+.picker-item.selected {
+  background: var(--primary-alpha);
+  border: 1px solid var(--primary);
+}
+
+.picker-item.directory {
+  font-weight: 500;
+}
+
+.picker-item-icon {
+  font-size: 1.2rem;
+  width: 24px;
+  text-align: center;
+}
+
+.picker-item-name {
+  flex: 1;
+}
+
+.picker-item-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.picker-preview {
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--surface-alt);
+  border-radius: var(--radius);
+}
+
+.picker-preview label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.picker-preview code {
+  display: block;
+  font-size: 0.9rem;
+  word-break: break-all;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}

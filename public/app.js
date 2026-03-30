@@ -465,6 +465,208 @@
   }
 
   // ============================================================
+  // Grader File Picker
+  // ============================================================
+  const DOMAIN_BASE = "cybearlab.cloud";
+  let pickerUser = "";
+  let pickerPath = "";
+  let pickerSelectedPath = "";
+
+  function openGradeFilePicker() {
+    $("#gradeFilePicker").classList.remove("hidden");
+    loadPickerUsers();
+  }
+
+  window.app = window.app || {};
+  window.app.closeGradeFilePicker = function() {
+    $("#gradeFilePicker").classList.add("hidden");
+    pickerUser = "";
+    pickerPath = "";
+    pickerSelectedPath = "";
+    updatePickerPreview();
+  };
+
+  async function loadPickerUsers() {
+    try {
+      const { res, data } = await api("/users?");
+      if (!res.ok) return;
+
+      const select = $("#pickerUserSelect");
+      select.innerHTML = '<option value="">Select a student...</option>' +
+        data.users.map((u) => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.username)}</option>`).join("");
+    } catch (err) {
+      console.error("Failed to load users:", err);
+    }
+  }
+
+  function setupGradeFilePicker() {
+    $("#pickerUserSelect")?.addEventListener("change", (e) => {
+      pickerUser = e.target.value;
+      pickerPath = "";
+      pickerSelectedPath = "";
+      if (pickerUser) {
+        loadPickerDirectory();
+      } else {
+        $("#pickerList").innerHTML = '<p class="muted">Select a student to browse.</p>';
+      }
+      updatePickerPreview();
+    });
+
+    $("#pickerUpBtn")?.addEventListener("click", () => {
+      if (pickerPath) {
+        const parts = pickerPath.split("/").filter(Boolean);
+        parts.pop();
+        pickerPath = parts.join("/");
+        pickerSelectedPath = pickerPath;
+        loadPickerDirectory();
+        updatePickerPreview();
+      }
+    });
+
+    $("#pickerHomeBtn")?.addEventListener("click", () => {
+      pickerPath = "";
+      pickerSelectedPath = "";
+      loadPickerDirectory();
+      updatePickerPreview();
+    });
+
+    $("#pickerSelectBtn")?.addEventListener("click", () => {
+      if (!pickerUser) {
+        showToast("Select a student first", "warn");
+        return;
+      }
+      const url = buildPickerUrl();
+      $("#gradeUrl").value = url;
+      $("#gradeStudent").value = pickerUser;
+      window.app.closeGradeFilePicker();
+      showToast(`Selected: ${url}`, "success");
+    });
+  }
+
+  async function loadPickerDirectory() {
+    if (!pickerUser) return;
+
+    const list = $("#pickerList");
+    list.innerHTML = '<p class="muted">Loading...</p>';
+
+    try {
+      const path = pickerPath ? `?path=${encodeURIComponent(pickerPath)}` : "";
+      const { res, data } = await api(`/files/browse/${encodeURIComponent(pickerUser)}${path}`);
+
+      if (!res.ok) {
+        list.innerHTML = `<p class="muted">Error: ${data.detail || "Failed to load"}</p>`;
+        return;
+      }
+
+      // Update breadcrumb
+      updatePickerBreadcrumb(data.path);
+      $("#pickerCurrentPath").textContent = "/" + (data.path === "/" ? "" : data.path);
+
+      // Filter to directories only (for picking project folders), but also show files for context
+      const items = data.items || [];
+
+      if (!items.length) {
+        list.innerHTML = '<p class="muted">Empty directory</p>';
+        return;
+      }
+
+      list.innerHTML = items.map((item) => {
+        const icon = item.type === "directory" ? "📁" : getFileIcon(item.name);
+        const isSelected = item.type === "directory" && item.path === pickerSelectedPath;
+        return `
+          <div class="picker-item ${item.type}${isSelected ? " selected" : ""}" 
+               data-path="${escapeHtml(item.path)}" 
+               data-type="${item.type}" 
+               data-name="${escapeHtml(item.name)}">
+            <span class="picker-item-icon">${icon}</span>
+            <span class="picker-item-name">${escapeHtml(item.name)}</span>
+            <span class="picker-item-meta">${item.type === "directory" ? "folder" : item.size_formatted}</span>
+          </div>
+        `;
+      }).join("");
+
+      // Attach click handlers
+      list.querySelectorAll(".picker-item").forEach(el => {
+        el.addEventListener("click", () => handlePickerItemClick(el));
+        el.addEventListener("dblclick", () => handlePickerItemDblClick(el));
+      });
+
+      // Enable select button
+      $("#pickerSelectBtn").disabled = false;
+    } catch (err) {
+      console.error("Picker load error:", err);
+      list.innerHTML = '<p class="muted">Error loading files</p>';
+    }
+  }
+
+  function handlePickerItemClick(el) {
+    const type = el.dataset.type;
+    const path = el.dataset.path;
+
+    // Remove selection from all items
+    $$(".picker-item.selected").forEach(item => item.classList.remove("selected"));
+
+    if (type === "directory") {
+      // Select this directory
+      el.classList.add("selected");
+      pickerSelectedPath = path;
+    } else {
+      // Files can't be selected, just clear selection
+      pickerSelectedPath = pickerPath;
+    }
+    updatePickerPreview();
+  }
+
+  function handlePickerItemDblClick(el) {
+    const type = el.dataset.type;
+    const path = el.dataset.path;
+
+    if (type === "directory") {
+      // Navigate into directory
+      pickerPath = path;
+      pickerSelectedPath = path;
+      loadPickerDirectory();
+      updatePickerPreview();
+    }
+  }
+
+  function updatePickerBreadcrumb(currentPath) {
+    const breadcrumb = $("#pickerBreadcrumb");
+    if (!currentPath || currentPath === "/") {
+      breadcrumb.innerHTML = `<span class="breadcrumb-item">/ (root)</span>`;
+      return;
+    }
+
+    const parts = currentPath.split("/").filter(Boolean);
+    let pathSoFar = "";
+    
+    breadcrumb.innerHTML = `<span class="breadcrumb-sep">/</span>` + parts.map((part, idx) => {
+      pathSoFar += "/" + part;
+      const thisPath = pathSoFar.substring(1); // Remove leading /
+      return `<span class="breadcrumb-item" data-path="${escapeHtml(thisPath)}">${escapeHtml(part)}</span>`;
+    }).join('<span class="breadcrumb-sep">/</span>');
+  }
+
+  function buildPickerUrl() {
+    let path = pickerSelectedPath || pickerPath || "";
+    // Remove leading/trailing slashes
+    path = path.replace(/^\/+|\/+$/g, "");
+    if (path) {
+      return `https://${pickerUser}.${DOMAIN_BASE}/${path}`;
+    }
+    return `https://${pickerUser}.${DOMAIN_BASE}/`;
+  }
+
+  function updatePickerPreview() {
+    const preview = $("#pickerPreviewUrl");
+    if (!pickerUser) {
+      preview.textContent = "—";
+      return;
+    }
+    preview.textContent = buildPickerUrl();
+  }
+
+  // ============================================================
   // Admin View
   // ============================================================
   function setupAdminTabs() {
@@ -1765,6 +1967,8 @@
 
     // Grader
     $("#gradeBtn").addEventListener("click", handleGrade);
+    $("#gradeBrowseBtn")?.addEventListener("click", openGradeFilePicker);
+    setupGradeFilePicker();
 
     // Admin
     setupAdminTabs();
