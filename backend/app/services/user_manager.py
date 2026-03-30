@@ -98,21 +98,26 @@ def _get_quota(username: str) -> Optional[int]:
 def _is_user_suspended(username: str, home_dir: str) -> bool:
     """Check if user account is suspended."""
     try:
-        # Check if shell is nologin
-        user_info = pwd.getpwnam(username)
-        if 'nologin' in user_info.pw_shell or 'false' in user_info.pw_shell:
-            return True
-        
-        # Check if home directory has restrictive permissions
-        stat = os.stat(home_dir)
-        if stat.st_mode & 0o700 == 0:  # No owner permissions
-            return True
-            
         # Check for .suspended marker file
         if os.path.exists(os.path.join(home_dir, '.suspended')):
             return True
+        
+        # Check if account is locked via passwd (L = locked)
+        result = subprocess.run(
+            ["passwd", "-S", username],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            parts = result.stdout.split()
+            if len(parts) >= 2 and parts[1] == 'L':
+                return True
+        
+        # Note: nologin shell is NORMAL for web-only student accounts
+        # It doesn't mean they're suspended
             
-    except (KeyError, OSError):
+    except (KeyError, OSError, subprocess.TimeoutExpired):
         pass
     return False
 
