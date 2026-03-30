@@ -126,6 +126,7 @@
     "/": "overview",
     "/grader": "grader",
     "/admin": "admin",
+    "/users": "users",
     "/reports": "reports",
     "/settings": "settings",
     "/system": "system",
