@@ -127,6 +127,7 @@
     "/grader": "grader",
     "/admin": "admin",
     "/users": "users",
+    "/dns": "dns",
     "/reports": "reports",
     "/settings": "settings",
     "/system": "system",
@@ -161,6 +162,7 @@
     if (route === "reports") loadReports();
     if (route === "system") loadSystemView();
     if (route === "users") loadUsersView();
+    if (route === "dns") loadDnsView();
   }
 
   function handleRouteChange() {
@@ -1764,6 +1766,187 @@
   }
 
   // ============================================================
+  // DNS Management View
+  // ============================================================
+  let dnsRecords = [];
+
+  async function loadDnsView() {
+    await Promise.all([loadDnsInfo(), loadDnsRecords(), loadCertInfo()]);
+    setupDnsEventListeners();
+  }
+
+  async function loadDnsInfo() {
+    try {
+      const { res, data } = await api("/dns/info");
+      if (!res.ok) return;
+
+      $("#dnsDomain").textContent = data.domain;
+      $("#dnsRecordCount").textContent = data.record_count;
+      $("#dnsSubdomainCount").textContent = data.subdomains.length;
+    } catch (err) {
+      console.error("Failed to load DNS info:", err);
+    }
+  }
+
+  async function loadDnsRecords() {
+    try {
+      const { res, data } = await api("/dns/records");
+      if (!res.ok) return;
+
+      dnsRecords = data;
+      renderDnsTable(dnsRecords);
+    } catch (err) {
+      console.error("Failed to load DNS records:", err);
+      $("#dnsTableBody").innerHTML = '<tr><td colspan="5" class="muted">Failed to load records</td></tr>';
+    }
+  }
+
+  async function loadCertInfo() {
+    try {
+      const { res, data } = await api("/dns/certificate");
+      if (!res.ok) return;
+
+      const certCard = $("#certStatus");
+      if (!certCard) return;
+
+      if (!data.installed) {
+        certCard.innerHTML = '<p class="muted">No SSL certificate installed</p>';
+        return;
+      }
+
+      const statusClass = data.status === "valid" ? "ok" : data.status === "expiring" ? "warn" : "crit";
+      const statusIcon = data.status === "valid" ? "✓" : data.status === "expiring" ? "⚠" : "✗";
+
+      certCard.innerHTML = `
+        <div class="cert-info">
+          <div class="cert-domain">
+            <span class="status-chip ${statusClass}">${statusIcon} ${data.domain}</span>
+          </div>
+          <p class="muted">Issued by: ${escapeHtml(data.issuer)}</p>
+          <p>Expires: ${new Date(data.valid_to).toLocaleDateString()} (${data.days_remaining} days)</p>
+          ${data.is_wildcard ? '<span class="badge">Wildcard</span>' : ''}
+        </div>
+      `;
+    } catch (err) {
+      console.error("Failed to load certificate info:", err);
+    }
+  }
+
+  function renderDnsTable(records) {
+    const tbody = $("#dnsTableBody");
+    const filter = $("#dnsTypeFilter")?.value || "";
+    const search = $("#dnsSearchInput")?.value?.toLowerCase() || "";
+
+    let filtered = records;
+    if (filter) filtered = filtered.filter((r) => r.type === filter);
+    if (search) filtered = filtered.filter((r) => 
+      r.name.toLowerCase().includes(search) || r.content.toLowerCase().includes(search)
+    );
+
+    if (!filtered?.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="muted">No DNS records found</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = filtered.map((r) => {
+      const typeClass = getRecordTypeClass(r.type);
+      const fqdn = r.name === "@" ? "cybearlab.cloud" : r.name === "*" ? "*.cybearlab.cloud" : `${r.name}.cybearlab.cloud`;
+
+      return `
+        <tr data-id="${escapeHtml(r.id)}">
+          <td><span class="dns-type ${typeClass}">${escapeHtml(r.type)}</span></td>
+          <td><code>${escapeHtml(fqdn)}</code></td>
+          <td><code>${escapeHtml(r.content)}</code></td>
+          <td>${r.ttl}s</td>
+          <td>
+            <button class="btn-icon" onclick="app.deleteDnsRecord('${escapeHtml(r.id)}')" title="Delete">🗑️</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function getRecordTypeClass(type) {
+    switch (type) {
+      case "A": return "type-a";
+      case "AAAA": return "type-aaaa";
+      case "CNAME": return "type-cname";
+      case "TXT": return "type-txt";
+      case "MX": return "type-mx";
+      default: return "";
+    }
+  }
+
+  function setupDnsEventListeners() {
+    // Filter changes
+    $("#dnsTypeFilter")?.addEventListener("change", () => renderDnsTable(dnsRecords));
+    $("#dnsSearchInput")?.addEventListener("input", () => renderDnsTable(dnsRecords));
+
+    // Add record form
+    $("#addDnsRecordBtn")?.addEventListener("click", showAddRecordModal);
+    $("#dnsRecordForm")?.addEventListener("submit", handleAddDnsRecord);
+    $("#closeDnsModal")?.addEventListener("click", closeDnsModal);
+  }
+
+  function showAddRecordModal() {
+    $("#dnsRecordModal")?.classList.add("active");
+    $("#dnsRecordForm")?.reset();
+  }
+
+  function closeDnsModal() {
+    $("#dnsRecordModal")?.classList.remove("active");
+  }
+
+  async function handleAddDnsRecord(e) {
+    e.preventDefault();
+    const form = e.target;
+    const data = {
+      name: form.elements.name.value.trim(),
+      type: form.elements.type.value,
+      content: form.elements.content.value.trim(),
+      ttl: parseInt(form.elements.ttl?.value) || 3600,
+    };
+
+    if (!data.name || !data.content) {
+      alert("Name and content are required");
+      return;
+    }
+
+    try {
+      const { res } = await api("/dns/records", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+
+      if (res.ok) {
+        closeDnsModal();
+        await loadDnsRecords();
+      } else {
+        alert("Failed to create DNS record");
+      }
+    } catch (err) {
+      console.error("Error creating DNS record:", err);
+      alert("Failed to create DNS record");
+    }
+  }
+
+  async function deleteDnsRecord(recordId) {
+    if (!confirm("Delete this DNS record?")) return;
+
+    try {
+      const { res } = await api(`/dns/records/${recordId}`, { method: "DELETE" });
+      if (res.ok) {
+        await loadDnsRecords();
+      } else {
+        alert("Failed to delete record");
+      }
+    } catch (err) {
+      console.error("Error deleting DNS record:", err);
+      alert("Failed to delete record");
+    }
+  }
+
+  // ============================================================
   // Init
   // ============================================================
   async function init() {
@@ -1786,6 +1969,8 @@
     deleteUser,
     bulkSuspendUsers,
     bulkUnsuspendUsers,
+    deleteDnsRecord,
+    closeDnsModal,
   };
 
   // Start

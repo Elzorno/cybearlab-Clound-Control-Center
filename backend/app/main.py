@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import SessionLocal, init_db
-from .routers import admin, audit, auth, grader, health, system, users
+from .routers import admin, audit, auth, dns, grader, health, system, users
 from .services.auth import bootstrap_admin_user
 
 app = FastAPI(
@@ -27,6 +27,7 @@ app.include_router(grader.router)
 app.include_router(audit.router)
 app.include_router(system.router)
 app.include_router(users.router)
+app.include_router(dns.router)
 
 
 @app.on_event("startup")

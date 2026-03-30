@@ -1563,3 +1563,93 @@ details[open] summary {
     width: 100%;
   }
 }
+
+/* ============================================================
+   DNS Management Styles
+   ============================================================ */
+.dns-type {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dns-type.type-a {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.dns-type.type-aaaa {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.dns-type.type-cname {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.dns-type.type-txt {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.dns-type.type-mx {
+  background: #fce4ec;
+  color: #c2185b;
+}
+
+.cert-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cert-info .cert-domain {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.cert-info .badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--primary);
+  color: white;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-top: 0.5rem;
+}
+
+#dnsRecordModal .modal-content {
+  max-width: 480px;
+}
+
+#dnsRecordModal .form-group {
+  margin-bottom: 1rem;
+}
+
+#dnsRecordModal .form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+#dnsRecordModal .hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}
+
+#dnsRecordModal .modal-footer {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}

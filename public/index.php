@@ -44,6 +44,7 @@ declare(strict_types=1);
         <a href="#/grader" class="nav-link" data-route="grader">Auto-Grader</a>
         <a href="#/admin" class="nav-link" data-route="admin">Student Admin</a>
         <a href="#/users" class="nav-link" data-route="users">Users</a>
+        <a href="#/dns" class="nav-link" data-route="dns">DNS</a>
         <a href="#/system" class="nav-link" data-route="system">System</a>
         <a href="#/reports" class="nav-link" data-route="reports">Reports</a>
         <a href="#/settings" class="nav-link" data-route="settings">Settings</a>
@@ -531,6 +532,140 @@ declare(strict_types=1);
           <div class="modal-footer">
             <button class="btn" onclick="app.closeUserModal()">Close</button>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- View: DNS Management -->
+    <section id="view-dns" class="view hidden">
+      <div class="view-header">
+        <h2>DNS Management</h2>
+        <p class="muted">Manage domain records and SSL certificates</p>
+      </div>
+
+      <!-- Domain Info Cards -->
+      <div class="card-grid cols-3">
+        <article class="card glass">
+          <div class="card-header">
+            <h3>Domain</h3>
+          </div>
+          <div class="card-body">
+            <div class="stat-value" id="dnsDomain">—</div>
+            <p class="muted">Primary domain</p>
+          </div>
+        </article>
+
+        <article class="card glass">
+          <div class="card-header">
+            <h3>DNS Records</h3>
+          </div>
+          <div class="card-body">
+            <div class="stat-value" id="dnsRecordCount">—</div>
+            <p class="muted">Total records</p>
+          </div>
+        </article>
+
+        <article class="card glass">
+          <div class="card-header">
+            <h3>Subdomains</h3>
+          </div>
+          <div class="card-body">
+            <div class="stat-value" id="dnsSubdomainCount">—</div>
+            <p class="muted">Student sites</p>
+          </div>
+        </article>
+      </div>
+
+      <!-- SSL Certificate Status -->
+      <article class="card glass">
+        <div class="card-header">
+          <h3>SSL Certificate</h3>
+        </div>
+        <div class="card-body" id="certStatus">
+          <p class="muted">Loading certificate info...</p>
+        </div>
+      </article>
+
+      <!-- DNS Records Table -->
+      <article class="card glass">
+        <div class="card-header">
+          <h3>DNS Records</h3>
+          <div class="card-actions">
+            <select id="dnsTypeFilter" class="input input-sm">
+              <option value="">All Types</option>
+              <option value="A">A</option>
+              <option value="AAAA">AAAA</option>
+              <option value="CNAME">CNAME</option>
+              <option value="TXT">TXT</option>
+              <option value="MX">MX</option>
+            </select>
+            <input type="text" id="dnsSearchInput" class="input input-sm" placeholder="Search...">
+            <button id="addDnsRecordBtn" class="btn btn-primary btn-sm">+ Add Record</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Name</th>
+                  <th>Content</th>
+                  <th>TTL</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="dnsTableBody">
+                <tr><td colspan="5" class="muted">Loading DNS records...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <!-- Add DNS Record Modal -->
+      <div id="dnsRecordModal" class="modal">
+        <div class="modal-backdrop" onclick="app.closeDnsModal && app.closeDnsModal()"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3>Add DNS Record</h3>
+            <button id="closeDnsModal" class="btn-close">&times;</button>
+          </div>
+          <form id="dnsRecordForm" class="modal-body">
+            <div class="form-group">
+              <label for="dnsRecordName">Name (subdomain)</label>
+              <input type="text" id="dnsRecordName" name="name" class="input" placeholder="e.g., www, student1, @" required>
+              <span class="hint">Use @ for root domain, * for wildcard</span>
+            </div>
+            <div class="form-group">
+              <label for="dnsRecordType">Type</label>
+              <select id="dnsRecordType" name="type" class="input" required>
+                <option value="A">A (IPv4 Address)</option>
+                <option value="AAAA">AAAA (IPv6 Address)</option>
+                <option value="CNAME">CNAME (Alias)</option>
+                <option value="TXT">TXT (Text Record)</option>
+                <option value="MX">MX (Mail Server)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="dnsRecordContent">Content</label>
+              <input type="text" id="dnsRecordContent" name="content" class="input" placeholder="e.g., 72.61.7.180" required>
+              <span class="hint">IP address, hostname, or text value</span>
+            </div>
+            <div class="form-group">
+              <label for="dnsRecordTTL">TTL (seconds)</label>
+              <select name="ttl" class="input">
+                <option value="300">5 minutes</option>
+                <option value="3600" selected>1 hour</option>
+                <option value="14400">4 hours</option>
+                <option value="86400">1 day</option>
+              </select>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn" onclick="document.getElementById('dnsRecordModal').classList.remove('active')">Cancel</button>
+              <button type="submit" class="btn btn-primary">Create Record</button>
+            </div>
+          </form>
         </div>
       </div>
     </section>
