@@ -41,14 +41,40 @@ declare(strict_types=1);
       </div>
       <nav class="topbar-nav">
         <a href="#/" class="nav-link" data-route="overview">Overview</a>
-        <a href="#/grader" class="nav-link" data-route="grader">Auto-Grader</a>
-        <a href="#/admin" class="nav-link" data-route="admin">Student Admin</a>
-        <a href="#/users" class="nav-link" data-route="users">Users</a>
-        <a href="#/dns" class="nav-link" data-route="dns">DNS</a>
-        <a href="#/system" class="nav-link" data-route="system">System</a>
-        <a href="#/reports" class="nav-link" data-route="reports">Reports</a>
-        <a href="#/audit" class="nav-link" data-route="audit">Audit</a>
-        <a href="#/settings" class="nav-link" data-route="settings">Settings</a>
+        <div class="nav-dropdown">
+          <button class="nav-link nav-dropdown-trigger">Grading <span class="caret">▾</span></button>
+          <div class="nav-dropdown-menu">
+            <a href="#/grader" class="nav-link" data-route="grader">Auto-Grader</a>
+            <a href="#/admin" class="nav-link" data-route="admin">Student Admin</a>
+            <a href="#/reports" class="nav-link" data-route="reports">Reports</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <button class="nav-link nav-dropdown-trigger">Server <span class="caret">▾</span></button>
+          <div class="nav-dropdown-menu">
+            <a href="#/system" class="nav-link" data-route="system">System</a>
+            <a href="#/dns" class="nav-link" data-route="dns">DNS</a>
+            <a href="#/cron" class="nav-link" data-route="cron">Cron Jobs</a>
+            <a href="#/security" class="nav-link" data-route="security">Security</a>
+            <a href="#/ssl" class="nav-link" data-route="ssl">SSL/TLS</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <button class="nav-link nav-dropdown-trigger">Storage <span class="caret">▾</span></button>
+          <div class="nav-dropdown-menu">
+            <a href="#/files" class="nav-link" data-route="files">Files</a>
+            <a href="#/databases" class="nav-link" data-route="databases">Databases</a>
+            <a href="#/ftp" class="nav-link" data-route="ftp">FTP Accounts</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <button class="nav-link nav-dropdown-trigger">Admin <span class="caret">▾</span></button>
+          <div class="nav-dropdown-menu">
+            <a href="#/users" class="nav-link" data-route="users">Users</a>
+            <a href="#/audit" class="nav-link" data-route="audit">Audit Log</a>
+            <a href="#/settings" class="nav-link" data-route="settings">Settings</a>
+          </div>
+        </div>
       </nav>
       <div class="topbar-actions">
         <span id="statusPill" class="pill ok">Signed in</span>
@@ -537,6 +563,492 @@ declare(strict_types=1);
       </div>
     </section>
 
+    <!-- View: File Manager -->
+    <section id="view-files" class="view hidden">
+      <div class="view-header">
+        <h2>File Manager</h2>
+        <p class="muted">Browse and manage user files</p>
+      </div>
+
+      <!-- User Selection -->
+      <div class="filters-bar card glass">
+        <div class="filter-group">
+          <label>User
+            <select id="filesUserSelect" class="input">
+              <option value="">Select a user...</option>
+            </select>
+          </label>
+          <span id="filesCurrentPath" class="files-path mono"></span>
+        </div>
+        <div class="filter-actions">
+          <button id="filesRefreshBtn" class="btn btn-ghost">↻ Refresh</button>
+          <span id="filesStats" class="muted"></span>
+        </div>
+      </div>
+
+      <!-- File Browser -->
+      <article class="card glass files-browser">
+        <!-- Toolbar -->
+        <div class="files-toolbar">
+          <div class="files-toolbar-left">
+            <button id="filesUpBtn" class="btn btn-sm" title="Go up">↑ Up</button>
+            <button id="filesHomeBtn" class="btn btn-sm" title="Go to root">🏠 Home</button>
+          </div>
+          <div class="breadcrumb" id="filesBreadcrumb"></div>
+          <div class="files-toolbar-right">
+            <button id="filesNewFileBtn" class="btn btn-sm">+ New File</button>
+            <button id="filesNewFolderBtn" class="btn btn-sm">+ New Folder</button>
+            <button id="filesUploadBtn" class="btn btn-sm primary">↑ Upload</button>
+            <input type="file" id="filesUploadInput" hidden multiple />
+          </div>
+        </div>
+
+        <!-- Files List/Grid -->
+        <div class="files-list" id="filesList">
+          <p class="muted">Select a user to browse files.</p>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="files-statusbar">
+          <span id="filesItemCount">0 items</span>
+          <span id="filesTotalSize"></span>
+        </div>
+      </article>
+
+      <!-- File Editor Modal -->
+      <div id="fileEditorModal" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeFileEditor()"></div>
+        <div class="modal-content card file-editor-modal">
+          <div class="modal-header">
+            <h3 id="fileEditorTitle">Edit File</h3>
+            <button class="btn-close" onclick="app.closeFileEditor()">&times;</button>
+          </div>
+          <div class="modal-body file-editor-body">
+            <textarea id="fileEditorContent" class="file-editor-textarea" spellcheck="false"></textarea>
+          </div>
+          <div class="modal-footer">
+            <span id="fileEditorInfo" class="muted"></span>
+            <div class="modal-footer-actions">
+              <button class="btn" onclick="app.closeFileEditor()">Cancel</button>
+              <button id="fileEditorSaveBtn" class="btn primary">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- File Properties Modal -->
+      <div id="filePropsModal" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeFileProps()"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3>File Properties</h3>
+            <button class="btn-close" onclick="app.closeFileProps()">&times;</button>
+          </div>
+          <div class="modal-body" id="filePropsBody">
+            <!-- Populated dynamically -->
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="app.closeFileProps()">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- New File/Folder Modal -->
+      <div id="filesNewModal" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeFilesNewModal()"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3 id="filesNewModalTitle">New File</h3>
+            <button class="btn-close" onclick="app.closeFilesNewModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <label>Name
+              <input id="filesNewName" class="input" placeholder="filename.html" />
+            </label>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="app.closeFilesNewModal()">Cancel</button>
+            <button id="filesNewCreateBtn" class="btn primary">Create</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chmod Modal -->
+      <div id="filesChmodModal" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeChmodModal()"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3>Change Permissions</h3>
+            <button class="btn-close" onclick="app.closeChmodModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <label>Permissions (octal)
+              <input id="filesChmodValue" class="input mono" placeholder="755" maxlength="4" />
+            </label>
+            <p class="muted small">Enter octal mode like 755, 644, etc.</p>
+            <div class="chmod-presets">
+              <button class="btn btn-sm" onclick="document.getElementById('filesChmodValue').value='755'">755</button>
+              <button class="btn btn-sm" onclick="document.getElementById('filesChmodValue').value='644'">644</button>
+              <button class="btn btn-sm" onclick="document.getElementById('filesChmodValue').value='600'">600</button>
+              <button class="btn btn-sm" onclick="document.getElementById('filesChmodValue').value='777'">777</button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="app.closeChmodModal()">Cancel</button>
+            <button id="filesChmodApplyBtn" class="btn primary">Apply</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rename Modal -->
+      <div id="filesRenameModal" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeRenameModal()"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3>Rename</h3>
+            <button class="btn-close" onclick="app.closeRenameModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <label>New Name
+              <input id="filesRenameName" class="input" />
+            </label>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="app.closeRenameModal()">Cancel</button>
+            <button id="filesRenameApplyBtn" class="btn primary">Rename</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- View: Database Management -->
+    <section id="view-databases" class="view hidden">
+      <div class="view-header">
+        <h2>Database Management</h2>
+        <p class="muted">Manage MySQL databases and users</p>
+      </div>
+
+      <!-- User Selection -->
+      <div class="filters-bar card glass">
+        <div class="filter-group">
+          <label>User
+            <select id="dbUserSelect" class="input">
+              <option value="">Select a user...</option>
+            </select>
+          </label>
+        </div>
+        <div class="filter-actions">
+          <button id="dbRefreshBtn" class="btn btn-ghost">↻ Refresh</button>
+          <button id="dbCreateBtn" class="btn primary">+ Create Database</button>
+        </div>
+      </div>
+
+      <!-- Stats Cards -->
+      <div class="card-grid cols-3" id="dbStats">
+        <article class="card glass stat-card">
+          <p class="stat-label">Databases</p>
+          <p id="dbCount" class="stat-value">—</p>
+        </article>
+        <article class="card glass stat-card">
+          <p class="stat-label">Total Tables</p>
+          <p id="dbTableCount" class="stat-value">—</p>
+        </article>
+        <article class="card glass stat-card">
+          <p class="stat-label">Total Size</p>
+          <p id="dbTotalSize" class="stat-value">—</p>
+        </article>
+      </div>
+
+      <!-- Database List -->
+      <article class="card glass">
+        <div class="card-header">
+          <h3>Databases</h3>
+        </div>
+        <div class="card-body">
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Database Name</th>
+                  <th>Tables</th>
+                  <th>Size</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="dbTableBody">
+                <tr><td colspan="4" class="muted">Select a user to view databases.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <!-- MySQL User Info -->
+      <article class="card glass" id="dbUserInfo" style="display: none;">
+        <div class="card-header">
+          <h3>MySQL User</h3>
+          <div class="card-actions">
+            <button id="dbSetPasswordBtn" class="btn btn-sm">Set Password</button>
+            <button id="dbCreateUserBtn" class="btn btn-sm primary">Create MySQL User</button>
+          </div>
+        </div>
+        <div class="card-body" id="dbUserInfoBody">
+          <p class="muted">Loading...</p>
+        </div>
+      </article>
+
+      <!-- Create Database Modal -->
+      <div id="dbCreateModal" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeDbCreateModal()"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3>Create Database</h3>
+            <button class="btn-close" onclick="app.closeDbCreateModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <label>Database Name
+              <div class="input-group">
+                <span class="input-prefix" id="dbNamePrefix"></span>
+                <input id="dbCreateName" class="input" placeholder="myapp" />
+              </div>
+            </label>
+            <p class="muted small">Database will be created as <span id="dbFullName"></span></p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="app.closeDbCreateModal()">Cancel</button>
+            <button id="dbCreateConfirmBtn" class="btn primary">Create</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Set Password Modal -->
+      <div id="dbPasswordModal" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeDbPasswordModal()"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3>Set MySQL Password</h3>
+            <button class="btn-close" onclick="app.closeDbPasswordModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <label>New Password
+              <input id="dbPassword" type="password" class="input" placeholder="Enter new password" />
+            </label>
+            <label>Confirm Password
+              <input id="dbPasswordConfirm" type="password" class="input" placeholder="Confirm password" />
+            </label>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="app.closeDbPasswordModal()">Cancel</button>
+            <button id="dbSetPasswordConfirmBtn" class="btn primary">Set Password</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Database Detail Modal -->
+      <div id="dbDetailModal" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeDbDetailModal()"></div>
+        <div class="modal-content card modal-wide">
+          <div class="modal-header">
+            <h3 id="dbDetailTitle">Database Details</h3>
+            <button class="btn-close" onclick="app.closeDbDetailModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Table</th>
+                    <th>Engine</th>
+                    <th>Rows</th>
+                    <th>Size</th>
+                  </tr>
+                </thead>
+                <tbody id="dbDetailTableBody">
+                  <tr><td colspan="4" class="muted">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="app.closeDbDetailModal()">Close</button>
+            <button class="btn" onclick="app.exportDatabase()">Export SQL</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- View: FTP Management -->
+    <section id="view-ftp" class="view hidden">
+      <div class="view-header">
+        <h2>FTP Account Management</h2>
+        <p class="muted">Create and manage FTP accounts for file access</p>
+      </div>
+
+      <!-- User Selection -->
+      <div class="filters-bar card glass">
+        <div class="filter-group">
+          <label>User
+            <select id="ftpUserSelect" class="input">
+              <option value="">Select a user...</option>
+            </select>
+          </label>
+        </div>
+        <div class="filter-actions">
+          <button id="ftpRefreshBtn" class="btn btn-ghost">↻ Refresh</button>
+          <button id="ftpCreateBtn" class="btn primary">+ Create FTP Account</button>
+        </div>
+      </div>
+
+      <!-- FTP Info -->
+      <div class="card-grid cols-3">
+        <article class="card glass stat-card">
+          <p class="stat-label">FTP Accounts</p>
+          <p id="ftpCount" class="stat-value">—</p>
+        </article>
+        <article class="card glass stat-card">
+          <p class="stat-label">Active Sessions</p>
+          <p id="ftpSessions" class="stat-value">—</p>
+        </article>
+        <article class="card glass stat-card">
+          <p class="stat-label">FTP Server</p>
+          <p id="ftpServer" class="stat-value">ftp.cybearlab.cloud</p>
+        </article>
+      </div>
+
+      <!-- FTP Accounts List -->
+      <article class="card glass">
+        <div class="card-header">
+          <h3>FTP Accounts</h3>
+        </div>
+        <div class="card-body">
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Username</th>
+                  <th>Home Directory</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="ftpTableBody">
+                <tr><td colspan="4" class="muted">Select a user to view FTP accounts.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <!-- Active Sessions -->
+      <article class="card glass" id="ftpSessionsCard" style="display: none;">
+        <div class="card-header">
+          <h3>Active FTP Sessions</h3>
+        </div>
+        <div class="card-body">
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Username</th>
+                  <th>IP Address</th>
+                  <th>Connected</th>
+                  <th>Current Dir</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="ftpSessionsTableBody">
+                <tr><td colspan="5" class="muted">No active sessions.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <!-- Create FTP Account Modal -->
+      <div id="ftpCreateModal" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeFtpCreateModal()"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3>Create FTP Account</h3>
+            <button class="btn-close" onclick="app.closeFtpCreateModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <label>Account Name
+              <div class="input-group">
+                <span class="input-prefix" id="ftpNamePrefix"></span>
+                <input id="ftpCreateName" class="input" placeholder="webmaster" />
+              </div>
+            </label>
+            <label>Password (leave blank to generate)
+              <input id="ftpCreatePassword" type="password" class="input" placeholder="Auto-generate" />
+            </label>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="app.closeFtpCreateModal()">Cancel</button>
+            <button id="ftpCreateConfirmBtn" class="btn primary">Create</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- FTP Password Modal -->
+      <div id="ftpPasswordModal" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeFtpPasswordModal()"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3>Set FTP Password</h3>
+            <button class="btn-close" onclick="app.closeFtpPasswordModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <input id="ftpPasswordAccount" type="hidden" />
+            <label>New Password
+              <input id="ftpNewPassword" type="password" class="input" placeholder="Enter new password" />
+            </label>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="app.closeFtpPasswordModal()">Cancel</button>
+            <button id="ftpSetPasswordConfirmBtn" class="btn primary">Set Password</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Created Account Modal (shows credentials) -->
+      <div id="ftpCreatedModal" class="modal hidden">
+        <div class="modal-backdrop" onclick="app.closeFtpCreatedModal()"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3>FTP Account Created</h3>
+            <button class="btn-close" onclick="app.closeFtpCreatedModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-success">FTP account created successfully!</div>
+            <div class="props-grid">
+              <div class="prop-row">
+                <span class="prop-label">FTP Host</span>
+                <span class="prop-value mono">ftp.cybearlab.cloud</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Username</span>
+                <span class="prop-value mono" id="ftpCreatedUsername"></span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Password</span>
+                <span class="prop-value mono" id="ftpCreatedPassword"></span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Directory</span>
+                <span class="prop-value mono" id="ftpCreatedDirectory"></span>
+              </div>
+            </div>
+            <p class="muted small">Save these credentials securely. The password won't be shown again.</p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn primary" onclick="app.closeFtpCreatedModal()">Done</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- View: DNS Management -->
     <section id="view-dns" class="view hidden">
       <div class="view-header">
@@ -758,6 +1270,353 @@ declare(strict_types=1);
             <button class="modal-close">&times;</button>
           </div>
           <div id="runDetailBody" class="modal-body"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- View: Cron Jobs -->
+    <section id="view-cron" class="view hidden">
+      <div class="view-header">
+        <h2>Cron Jobs</h2>
+        <p class="muted">Scheduled task management for users</p>
+      </div>
+
+      <!-- User Selection -->
+      <article class="card glass">
+        <div class="card-header">
+          <h3>Select User</h3>
+        </div>
+        <div class="card-body">
+          <div class="form-row">
+            <input type="text" id="cronUsername" class="input" placeholder="Enter username" />
+            <button id="cronLoadBtn" class="btn primary">Load Cron Jobs</button>
+          </div>
+        </div>
+      </article>
+
+      <!-- Cron Jobs Table -->
+      <article class="card glass" id="cronJobsCard" style="display:none">
+        <div class="card-header">
+          <h3>Cron Jobs for <span id="cronUserLabel">—</span></h3>
+          <button id="addCronBtn" class="btn btn-primary btn-sm">+ Add Cron Job</button>
+        </div>
+        <div class="card-body">
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Schedule</th>
+                  <th>Command</th>
+                  <th>Comment</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="cronTableBody">
+                <tr><td colspan="5" class="muted">No cron jobs</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <!-- Common Schedules Reference -->
+      <article class="card glass">
+        <div class="card-header">
+          <h3>Common Schedules</h3>
+        </div>
+        <div class="card-body">
+          <div id="commonSchedules" class="common-schedules-grid">
+            <div class="schedule-item"><code>* * * * *</code> <span>Every minute</span></div>
+            <div class="schedule-item"><code>0 * * * *</code> <span>Every hour</span></div>
+            <div class="schedule-item"><code>0 0 * * *</code> <span>Daily at midnight</span></div>
+            <div class="schedule-item"><code>0 0 * * 0</code> <span>Weekly (Sundays)</span></div>
+            <div class="schedule-item"><code>0 0 1 * *</code> <span>Monthly</span></div>
+            <div class="schedule-item"><code>*/5 * * * *</code> <span>Every 5 minutes</span></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Add/Edit Cron Job Modal -->
+      <div id="cronModal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3 id="cronModalTitle">Add Cron Job</h3>
+            <button class="modal-close">&times;</button>
+          </div>
+          <form id="cronForm" class="modal-body">
+            <div class="form-group">
+              <label>Minute (0-59)</label>
+              <input type="text" id="cronMinute" class="input" placeholder="*" required>
+            </div>
+            <div class="form-group">
+              <label>Hour (0-23)</label>
+              <input type="text" id="cronHour" class="input" placeholder="*" required>
+            </div>
+            <div class="form-group">
+              <label>Day of Month (1-31)</label>
+              <input type="text" id="cronDay" class="input" placeholder="*" required>
+            </div>
+            <div class="form-group">
+              <label>Month (1-12)</label>
+              <input type="text" id="cronMonth" class="input" placeholder="*" required>
+            </div>
+            <div class="form-group">
+              <label>Day of Week (0-6, Sun=0)</label>
+              <input type="text" id="cronWeekday" class="input" placeholder="*" required>
+            </div>
+            <div class="form-group">
+              <label>Command</label>
+              <input type="text" id="cronCommand" class="input" placeholder="/path/to/script.sh" required>
+            </div>
+            <div class="form-group">
+              <label>Comment (optional)</label>
+              <input type="text" id="cronComment" class="input" placeholder="Backup script">
+            </div>
+            <input type="hidden" id="cronEditId" value="">
+            <div class="modal-footer">
+              <button type="button" class="btn" onclick="app.closeCronModal()">Cancel</button>
+              <button type="submit" class="btn primary">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- View: Security -->
+    <section id="view-security" class="view hidden">
+      <div class="view-header">
+        <h2>Security Center</h2>
+        <p class="muted">SSH keys, firewall, and intrusion prevention</p>
+      </div>
+
+      <!-- SSH Keys Section -->
+      <article class="card glass">
+        <div class="card-header">
+          <h3>SSH Keys</h3>
+        </div>
+        <div class="card-body">
+          <div class="form-row">
+            <input type="text" id="sshUsername" class="input" placeholder="Enter username" />
+            <button id="sshLoadBtn" class="btn primary">Load SSH Keys</button>
+          </div>
+          <div id="sshKeysContainer" style="display:none; margin-top: 16px;">
+            <h4>SSH Keys for <span id="sshUserLabel">—</span></h4>
+            <div id="sshKeysList" class="ssh-keys-list">
+              <p class="muted">No SSH keys</p>
+            </div>
+            <div class="form-group" style="margin-top: 12px;">
+              <label>Add SSH Key</label>
+              <textarea id="newSshKey" class="input" rows="3" placeholder="ssh-rsa AAAA... user@host"></textarea>
+              <button id="addSshKeyBtn" class="btn primary btn-sm" style="margin-top: 8px;">Add Key</button>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Fail2Ban Section -->
+      <article class="card glass">
+        <div class="card-header">
+          <h3>Fail2Ban</h3>
+          <span id="fail2banStatus" class="pill neutral">Unknown</span>
+        </div>
+        <div class="card-body">
+          <div id="fail2banJails" class="jail-list">
+            <p class="muted">Loading Fail2Ban status...</p>
+          </div>
+          <div class="form-row" style="margin-top: 12px;">
+            <select id="fail2banJailSelect" class="input">
+              <option value="">Select jail</option>
+            </select>
+            <input type="text" id="fail2banIP" class="input" placeholder="IP address" />
+            <button id="banIPBtn" class="btn btn-sm">Ban IP</button>
+            <button id="unbanIPBtn" class="btn btn-sm">Unban IP</button>
+          </div>
+        </div>
+      </article>
+
+      <!-- UFW Firewall Section -->
+      <article class="card glass">
+        <div class="card-header">
+          <h3>UFW Firewall</h3>
+          <span id="ufwStatus" class="pill neutral">Unknown</span>
+        </div>
+        <div class="card-body">
+          <div class="form-row" style="margin-bottom: 12px;">
+            <button id="ufwEnableBtn" class="btn primary btn-sm">Enable UFW</button>
+            <button id="ufwDisableBtn" class="btn btn-sm">Disable UFW</button>
+          </div>
+          <h4>Firewall Rules</h4>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>To</th>
+                  <th>Action</th>
+                  <th>From</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="ufwRulesBody">
+                <tr><td colspan="5" class="muted">Loading rules...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="form-row" style="margin-top: 12px;">
+            <select id="ufwRuleType" class="input">
+              <option value="allow">Allow</option>
+              <option value="deny">Deny</option>
+              <option value="limit">Limit</option>
+            </select>
+            <input type="text" id="ufwPort" class="input input-sm" placeholder="Port (e.g., 22)" />
+            <select id="ufwProtocol" class="input">
+              <option value="">Any</option>
+              <option value="tcp">TCP</option>
+              <option value="udp">UDP</option>
+            </select>
+            <input type="text" id="ufwFromIP" class="input input-sm" placeholder="From IP (optional)" />
+            <button id="addUfwRuleBtn" class="btn primary btn-sm">Add Rule</button>
+          </div>
+        </div>
+      </article>
+
+      <!-- ModSecurity Section -->
+      <article class="card glass">
+        <div class="card-header">
+          <h3>ModSecurity WAF</h3>
+          <span id="modsecStatus" class="pill neutral">Unknown</span>
+        </div>
+        <div class="card-body">
+          <div class="form-row">
+            <select id="modsecMode" class="input">
+              <option value="On">On (Block)</option>
+              <option value="DetectionOnly">Detection Only</option>
+              <option value="Off">Off</option>
+            </select>
+            <button id="setModsecModeBtn" class="btn primary btn-sm">Set Mode</button>
+          </div>
+          <p class="muted small" style="margin-top: 8px;">ModSecurity provides web application firewall protection.</p>
+        </div>
+      </article>
+    </section>
+
+    <!-- View: SSL Certificates -->
+    <section id="view-ssl" class="view hidden">
+      <div class="view-header">
+        <h2>SSL/TLS Certificates</h2>
+        <p class="muted">Let's Encrypt certificate management</p>
+      </div>
+
+      <!-- Certificate Stats -->
+      <div class="card-grid cols-3">
+        <article class="card glass">
+          <div class="card-body">
+            <div class="stat-value" id="sslTotalCerts">—</div>
+            <p class="stat-label">Total Certificates</p>
+          </div>
+        </article>
+        <article class="card glass">
+          <div class="card-body">
+            <div class="stat-value" id="sslValidCerts">—</div>
+            <p class="stat-label">Valid</p>
+          </div>
+        </article>
+        <article class="card glass">
+          <div class="card-body">
+            <div class="stat-value warn" id="sslExpiringSoon">—</div>
+            <p class="stat-label">Expiring Soon</p>
+          </div>
+        </article>
+      </div>
+
+      <!-- Certificates Table -->
+      <article class="card glass">
+        <div class="card-header">
+          <h3>SSL Certificates</h3>
+          <div class="card-actions">
+            <button id="renewAllCertsBtn" class="btn btn-sm">Renew All</button>
+            <button id="requestCertBtn" class="btn btn-primary btn-sm">+ Request Certificate</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Domain</th>
+                  <th>Valid Until</th>
+                  <th>Days Left</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="sslTableBody">
+                <tr><td colspan="5" class="muted">Loading certificates...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+
+      <!-- Expiry Warnings -->
+      <article class="card glass" id="sslWarningsCard" style="display:none">
+        <div class="card-header">
+          <h3>Expiry Warnings</h3>
+        </div>
+        <div class="card-body">
+          <div id="sslWarnings" class="warnings-list"></div>
+        </div>
+      </article>
+
+      <!-- Request Certificate Modal -->
+      <div id="sslRequestModal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3>Request SSL Certificate</h3>
+            <button class="modal-close">&times;</button>
+          </div>
+          <form id="sslRequestForm" class="modal-body">
+            <div class="form-group">
+              <label>Domain(s)</label>
+              <input type="text" id="sslDomains" class="input" placeholder="example.com, www.example.com" required>
+              <span class="hint">Comma-separated list of domains</span>
+            </div>
+            <div class="form-group">
+              <label>Email (optional)</label>
+              <input type="email" id="sslEmail" class="input" placeholder="admin@example.com">
+            </div>
+            <div class="form-group">
+              <label>Webroot Path (optional)</label>
+              <input type="text" id="sslWebroot" class="input" placeholder="/var/www/html">
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="sslStaging">
+                Use staging environment (for testing)
+              </label>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn" onclick="app.closeSslModal()">Cancel</button>
+              <button type="submit" class="btn primary">Request Certificate</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Certificate Details Modal -->
+      <div id="sslDetailModal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h3>Certificate Details</h3>
+            <button class="modal-close">&times;</button>
+          </div>
+          <div id="sslDetailBody" class="modal-body">
+            <p class="muted">Loading...</p>
+          </div>
         </div>
       </div>
     </section>

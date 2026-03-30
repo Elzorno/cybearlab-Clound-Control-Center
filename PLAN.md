@@ -35,26 +35,25 @@ Transform the ISCS1800 student-hosting admin app into a full-featured web hostin
 - SSL certificate status
 - Subdomain listing
 
-## Phase 4 — Polish & Complete the Core UI ⬅️ CURRENT
-- [ ] Audit Log view — dedicated page with timeline, filters (action/user/date)
-- [ ] Settings view — grader limits, notification prefs, role/access display
-- [ ] Toast/notification system — unified success/error/info feedback
-- [ ] Commit staged DNS modal fix
-- [ ] Responsive/mobile pass on all views
-- [ ] Keyboard shortcuts for power users
+## Phase 4 — Polish & Complete the Core UI ✅
+- [x] Audit Log view — dedicated page with timeline, filters (action/user/date)
+- [x] Settings view — grader limits, notification prefs, role/access display
+- [x] Toast/notification system — unified success/error/info feedback
+- [x] Commit staged DNS modal fix
+- [x] Responsive/mobile pass on all views
+- [x] Keyboard shortcuts for power users
 
-## Phase 5 — File Manager & Database Tools
-- [ ] File Manager — browse user home dirs, upload/download, edit text files, chmod/chown
-- [ ] Database Management — list/create/drop MySQL DBs, user management, privileges
-- [ ] FTP Account Management — create/delete accounts, set directories and quotas
+## Phase 5 — File Manager & Database Tools ✅
+- [x] File Manager — browse user home dirs, upload/download, edit text files, chmod/chown
+- [x] Database Management — list/create/drop MySQL DBs, user management, privileges
+- [x] FTP Account Management — create/delete accounts, set directories and quotas
 
-## Phase 6 — Email, Cron & Security
-- [ ] Email Management — accounts, forwarders, autoresponders, spam filters
-- [ ] Cron Job Manager — list/create/edit/delete with expression builder
-- [ ] Security Center — SSH keys, IP blocklist (fail2ban), firewall (UFW), ModSecurity
-- [ ] SSL/TLS Management — Let's Encrypt install/renew, cert details per domain
+## Phase 6 — Cron, Security & SSL ✅
+- [x] Cron Job Manager — list/create/edit/delete per-user cron jobs, schedule helpers
+- [x] Security Center — SSH keys, Fail2Ban management, UFW firewall, ModSecurity WAF
+- [x] SSL/TLS Management — Let's Encrypt certificates, list/request/renew/revoke/delete
 
-## Phase 7 — Multi-User, RBAC & Audit Hardening
+## Phase 7 — Multi-User, RBAC & Audit Hardening ⬅️ NEXT
 - [ ] Role-Based Access Control — roles (admin/reseller/user), permission matrix
 - [ ] Multi-tenant support — reseller accounts managing sub-users
 - [ ] Audit log hardening — immutable storage, export, retention policies
@@ -78,11 +77,17 @@ Transform the ISCS1800 student-hosting admin app into a full-featured web hostin
 | Auto-Grader | `#/grader` | ✅ |
 | Student Admin | `#/admin` | ✅ |
 | Users | `#/users` | ✅ |
+| Files | `#/files` | ✅ |
+| Databases | `#/databases` | ✅ |
+| FTP | `#/ftp` | ✅ |
 | DNS | `#/dns` | ✅ |
+| Cron Jobs | `#/cron` | ✅ |
+| Security | `#/security` | ✅ |
+| SSL Certificates | `#/ssl` | ✅ |
 | System | `#/system` | ✅ |
 | Reports | `#/reports` | ✅ |
-| Audit Log | `#/audit` | ❌ Not yet built |
-| Settings | `#/settings` | ⚠️ Stub only |
+| Audit Log | `#/audit` | ✅ |
+| Settings | `#/settings` | ✅ |
 
 ## Backend Routers
 | Router | Prefix | Endpoints |
@@ -95,3 +100,9 @@ Transform the ISCS1800 student-hosting admin app into a full-featured web hostin
 | system | `/system` | GET /stats, GET/POST /services, GET /logs, GET /backups, POST /backups, DELETE /backups |
 | users | `/users` | GET /terms, GET /, GET /{username}, POST /{username}/suspend, POST /{username}/unsuspend, POST /{username}/quota, DELETE /{username}, GET /{username}/usage |
 | dns | `/dns` | GET /info, GET/POST /records, PATCH/DELETE /records/{id}, GET /certificate, GET /subdomains |
+| files | `/files` | GET /browse/{user}, GET /read/{user}, PUT /write/{user}, POST /create-file/{user}, POST /create-directory/{user}, DELETE /delete/{user}, POST /rename/{user}, POST /move/{user}, POST /copy/{user}, POST /chmod/{user}, POST /chown/{user}, POST /upload/{user}, GET /download/{user}, GET /info/{user} |
+| databases | `/databases` | GET /{user}, GET /{user}/detail/{db}, POST /{user}, DELETE /{user}/{db}, GET /{user}/user/info, POST /{user}/user, PUT /{user}/user/password, DELETE /{user}/user, POST /{user}/{db}/sql, GET /{user}/{db}/export, POST /{user}/{db}/import |
+| ftp | `/ftp` | GET /accounts/{user}, GET /accounts/{user}/{name}, POST /accounts/{user}, DELETE /accounts/{user}/{name}, PUT /accounts/{user}/{name}/password, POST /accounts/{user}/{name}/enable, POST /accounts/{user}/{name}/disable, PUT /accounts/{user}/{name}/directory, GET /sessions, POST /sessions/{user}/kick |
+| cron | `/cron` | GET /{user}, GET /{user}/{id}, POST /{user}, PUT /{user}/{id}, DELETE /{user}/{id}, POST /{user}/{id}/toggle, GET /schedules/common, POST /schedules/describe |
+| security | `/security` | GET/POST/DELETE /ssh-keys/{user}, GET /fail2ban/status, GET /fail2ban/banned/{jail}, POST /fail2ban/ban/{jail}, POST /fail2ban/unban/{jail}, GET /ufw/status, POST /ufw/enable, POST /ufw/disable, POST/DELETE /ufw/rules, GET /modsecurity/status, POST /modsecurity/mode |
+| ssl | `/ssl` | GET /certificates, GET /certificates/{domain}, POST /certificates, POST /certificates/{domain}/renew, POST /certificates/renew-all, POST /certificates/{domain}/revoke, DELETE /certificates/{domain}, GET /warnings |

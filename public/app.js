@@ -127,7 +127,13 @@
     "/grader": "grader",
     "/admin": "admin",
     "/users": "users",
+    "/files": "files",
+    "/databases": "databases",
+    "/ftp": "ftp",
     "/dns": "dns",
+    "/cron": "cron",
+    "/security": "security",
+    "/ssl": "ssl",
     "/reports": "reports",
     "/audit": "audit",
     "/settings": "settings",
@@ -163,7 +169,13 @@
     if (route === "reports") loadReports();
     if (route === "system") loadSystemView();
     if (route === "users") loadUsersView();
+    if (route === "files") loadFilesView();
+    if (route === "databases") loadDatabasesView();
+    if (route === "ftp") loadFtpView();
     if (route === "dns") loadDnsView();
+    if (route === "cron") loadCronView();
+    if (route === "security") loadSecurityView();
+    if (route === "ssl") loadSslView();
     if (route === "audit") loadAuditView();
     if (route === "settings") loadSettingsView();
   }
@@ -1803,6 +1815,36 @@
 
     // Settings - save grader config
     $("#settingsSaveGraderBtn")?.addEventListener("click", saveGraderSettings);
+
+    // Cron Management
+    $("#cronLoadBtn")?.addEventListener("click", () => {
+      loadCronJobs($("#cronUsername").value.trim());
+    });
+    $("#addCronBtn")?.addEventListener("click", () => showCronModal());
+    $("#cronForm")?.addEventListener("submit", saveCronJob);
+    $("#cronModal .modal-close")?.addEventListener("click", closeCronModal);
+    $("#cronModal .modal-backdrop")?.addEventListener("click", closeCronModal);
+
+    // Security Management
+    $("#sshLoadBtn")?.addEventListener("click", () => {
+      loadSshKeys($("#sshUsername").value.trim());
+    });
+    $("#addSshKeyBtn")?.addEventListener("click", addSshKey);
+    $("#banIPBtn")?.addEventListener("click", banIP);
+    $("#unbanIPBtn")?.addEventListener("click", unbanIP);
+    $("#ufwEnableBtn")?.addEventListener("click", enableUfw);
+    $("#ufwDisableBtn")?.addEventListener("click", disableUfw);
+    $("#addUfwRuleBtn")?.addEventListener("click", addUfwRule);
+    $("#setModsecModeBtn")?.addEventListener("click", setModSecurityMode);
+
+    // SSL Management
+    $("#requestCertBtn")?.addEventListener("click", showSslRequestModal);
+    $("#renewAllCertsBtn")?.addEventListener("click", renewAllCerts);
+    $("#sslRequestForm")?.addEventListener("submit", requestCertificate);
+    $("#sslRequestModal .modal-close")?.addEventListener("click", closeSslModal);
+    $("#sslRequestModal .modal-backdrop")?.addEventListener("click", closeSslModal);
+    $("#sslDetailModal .modal-close")?.addEventListener("click", closeSslDetailModal);
+    $("#sslDetailModal .modal-backdrop")?.addEventListener("click", closeSslDetailModal);
   }
 
   // ============================================================
@@ -2133,6 +2175,1816 @@
   }
 
   // ============================================================
+  // File Manager
+  // ============================================================
+  let filesCurrentUser = "";
+  let filesCurrentPath = "";
+  let filesSelectedItem = null;
+  let filesNewType = "file"; // "file" or "folder"
+
+  async function loadFilesView() {
+    await loadFilesUsers();
+    setupFilesEventListeners();
+  }
+
+  async function loadFilesUsers() {
+    try {
+      const { res, data } = await api("/users?");
+      if (!res.ok) return;
+
+      const select = $("#filesUserSelect");
+      select.innerHTML = '<option value="">Select a user...</option>' +
+        data.users.map((u) => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.username)} (${escapeHtml(u.term)})</option>`).join("");
+    } catch (err) {
+      console.error("Failed to load users:", err);
+    }
+  }
+
+  function setupFilesEventListeners() {
+    // User selection
+    $("#filesUserSelect")?.addEventListener("change", (e) => {
+      filesCurrentUser = e.target.value;
+      filesCurrentPath = "";
+      if (filesCurrentUser) {
+        loadFilesDirectory();
+      } else {
+        $("#filesList").innerHTML = '<p class="muted">Select a user to browse files.</p>';
+      }
+    });
+
+    // Navigation buttons
+    $("#filesUpBtn")?.addEventListener("click", () => {
+      if (filesCurrentPath) {
+        const parts = filesCurrentPath.split("/").filter(Boolean);
+        parts.pop();
+        filesCurrentPath = parts.join("/");
+        loadFilesDirectory();
+      }
+    });
+
+    $("#filesHomeBtn")?.addEventListener("click", () => {
+      filesCurrentPath = "";
+      loadFilesDirectory();
+    });
+
+    $("#filesRefreshBtn")?.addEventListener("click", loadFilesDirectory);
+
+    // New file/folder buttons
+    $("#filesNewFileBtn")?.addEventListener("click", () => showFilesNewModal("file"));
+    $("#filesNewFolderBtn")?.addEventListener("click", () => showFilesNewModal("folder"));
+    $("#filesNewCreateBtn")?.addEventListener("click", handleFilesCreate);
+
+    // Upload
+    $("#filesUploadBtn")?.addEventListener("click", () => {
+      if (!filesCurrentUser) {
+        showToast("Select a user first", "warn");
+        return;
+      }
+      $("#filesUploadInput").click();
+    });
+
+    $("#filesUploadInput")?.addEventListener("change", handleFilesUpload);
+
+    // Modal actions
+    $("#fileEditorSaveBtn")?.addEventListener("click", handleFileSave);
+    $("#filesChmodApplyBtn")?.addEventListener("click", handleChmodApply);
+    $("#filesRenameApplyBtn")?.addEventListener("click", handleRenameApply);
+  }
+
+  async function loadFilesDirectory() {
+    if (!filesCurrentUser) return;
+
+    const list = $("#filesList");
+    list.innerHTML = '<p class="muted">Loading...</p>';
+
+    try {
+      const path = filesCurrentPath ? `?path=${encodeURIComponent(filesCurrentPath)}` : "";
+      const { res, data } = await api(`/files/browse/${encodeURIComponent(filesCurrentUser)}${path}`);
+
+      if (!res.ok) {
+        list.innerHTML = `<p class="muted">Error: ${data.detail || "Failed to load"}</p>`;
+        return;
+      }
+
+      // Update breadcrumb
+      updateFilesBreadcrumb(data.path);
+
+      // Update stats
+      $("#filesStats").textContent = `${data.total_items} items, ${data.total_size_formatted}`;
+      $("#filesItemCount").textContent = `${data.total_items} items`;
+      $("#filesTotalSize").textContent = data.total_size_formatted;
+      $("#filesCurrentPath").textContent = "/" + (data.path === "/" ? "" : data.path);
+
+      // Render files list
+      if (!data.items?.length) {
+        list.innerHTML = '<p class="muted">Empty directory</p>';
+        return;
+      }
+
+      list.innerHTML = data.items.map((item) => {
+        const icon = item.type === "directory" ? "📁" : getFileIcon(item.name);
+        const sizeText = item.type === "directory" ? "-" : item.size_formatted;
+        const date = new Date(item.modified).toLocaleDateString();
+        const time = new Date(item.modified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        return `
+          <div class="file-item ${item.type}" data-path="${escapeHtml(item.path)}" data-type="${item.type}" data-name="${escapeHtml(item.name)}">
+            <div class="file-item-icon">${icon}</div>
+            <div class="file-item-name">${escapeHtml(item.name)}</div>
+            <div class="file-item-size">${sizeText}</div>
+            <div class="file-item-modified">${date} ${time}</div>
+            <div class="file-item-perms mono">${item.permissions}</div>
+            <div class="file-item-actions">
+              ${item.type === "file" && item.is_text ? `<button class="btn-icon" onclick="event.stopPropagation(); app.editFile('${escapeHtml(item.path)}')" title="Edit">✏️</button>` : ""}
+              ${item.type === "file" ? `<button class="btn-icon" onclick="event.stopPropagation(); app.downloadFile('${escapeHtml(item.path)}')" title="Download">⬇️</button>` : ""}
+              <button class="btn-icon" onclick="event.stopPropagation(); app.showFileProps('${escapeHtml(item.path)}')" title="Properties">ℹ️</button>
+              <button class="btn-icon" onclick="event.stopPropagation(); app.renameFile('${escapeHtml(item.path)}', '${escapeHtml(item.name)}')" title="Rename">✏️</button>
+              <button class="btn-icon" onclick="event.stopPropagation(); app.chmodFile('${escapeHtml(item.path)}')" title="Permissions">🔒</button>
+              <button class="btn-icon danger" onclick="event.stopPropagation(); app.deleteFile('${escapeHtml(item.path)}', '${item.type}')" title="Delete">🗑️</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      // Click handlers for navigation
+      $$(".file-item").forEach((el) => {
+        el.addEventListener("dblclick", () => {
+          const type = el.dataset.type;
+          const path = el.dataset.path;
+          if (type === "directory") {
+            filesCurrentPath = path;
+            loadFilesDirectory();
+          }
+        });
+      });
+
+    } catch (err) {
+      console.error("Failed to load directory:", err);
+      list.innerHTML = '<p class="muted">Error loading directory</p>';
+    }
+  }
+
+  function getFileIcon(name) {
+    const ext = name.split(".").pop()?.toLowerCase();
+    const icons = {
+      html: "🌐", htm: "🌐",
+      css: "🎨",
+      js: "📜",
+      json: "📋",
+      php: "🐘",
+      py: "🐍",
+      txt: "📝", md: "📝",
+      jpg: "🖼️", jpeg: "🖼️", png: "🖼️", gif: "🖼️", webp: "🖼️", svg: "🖼️",
+      pdf: "📕",
+      zip: "📦", tar: "📦", gz: "📦",
+      sh: "⚡",
+      log: "📋",
+    };
+    return icons[ext] || "📄";
+  }
+
+  function updateFilesBreadcrumb(path) {
+    const crumb = $("#filesBreadcrumb");
+    const parts = path === "/" ? [] : path.split("/").filter(Boolean);
+    
+    let html = `<span class="breadcrumb-item" onclick="app.navigateToPath('')">🏠 ${escapeHtml(filesCurrentUser)}</span>`;
+    let cumulative = "";
+    
+    for (const part of parts) {
+      cumulative += "/" + part;
+      const pathCopy = cumulative.slice(1); // Remove leading slash
+      html += ` / <span class="breadcrumb-item" onclick="app.navigateToPath('${escapeHtml(pathCopy)}')">${escapeHtml(part)}</span>`;
+    }
+    
+    crumb.innerHTML = html;
+  }
+
+  function navigateToPath(path) {
+    filesCurrentPath = path;
+    loadFilesDirectory();
+  }
+
+  async function editFile(path) {
+    try {
+      const { res, data } = await api(`/files/read/${encodeURIComponent(filesCurrentUser)}?path=${encodeURIComponent(path)}`);
+      
+      if (!res.ok) {
+        showToast(data.detail || "Failed to read file", "error");
+        return;
+      }
+
+      $("#fileEditorTitle").textContent = `Edit: ${data.name}`;
+      $("#fileEditorContent").value = data.content;
+      $("#fileEditorInfo").textContent = `${data.size} bytes | ${data.encoding} | ${data.mime_type}`;
+      $("#fileEditorModal").classList.remove("hidden");
+      
+      // Store current editing file
+      $("#fileEditorModal").dataset.path = path;
+      
+      // Focus editor
+      setTimeout(() => $("#fileEditorContent").focus(), 100);
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function closeFileEditor() {
+    $("#fileEditorModal").classList.add("hidden");
+    $("#fileEditorContent").value = "";
+  }
+
+  async function handleFileSave() {
+    const path = $("#fileEditorModal").dataset.path;
+    const content = $("#fileEditorContent").value;
+
+    try {
+      const { res, data } = await api(`/files/write/${encodeURIComponent(filesCurrentUser)}?path=${encodeURIComponent(path)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+
+      if (res.ok) {
+        showToast("File saved", "success");
+        closeFileEditor();
+        loadFilesDirectory();
+      } else {
+        showToast(data.detail || "Failed to save", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function downloadFile(path) {
+    try {
+      const url = resolveUrl(`/files/download/${encodeURIComponent(filesCurrentUser)}?path=${encodeURIComponent(path)}`);
+      const fullUrl = url + (url.includes("?") ? "&" : "") + `token=${token}`;
+      window.open(fullUrl, "_blank");
+    } catch (err) {
+      showToast(`Download error: ${err.message}`, "error");
+    }
+  }
+
+  async function showFileProps(path) {
+    try {
+      const { res, data } = await api(`/files/info/${encodeURIComponent(filesCurrentUser)}?path=${encodeURIComponent(path)}`);
+      
+      if (!res.ok) {
+        showToast(data.detail || "Failed to get info", "error");
+        return;
+      }
+
+      const date = new Date(data.modified).toLocaleString();
+      
+      $("#filePropsBody").innerHTML = `
+        <div class="props-grid">
+          <div class="prop-row">
+            <span class="prop-label">Name</span>
+            <span class="prop-value">${escapeHtml(data.name)}</span>
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Type</span>
+            <span class="prop-value">${data.type === "directory" ? "Directory" : data.mime_type || "File"}</span>
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Size</span>
+            <span class="prop-value">${data.size_formatted} (${data.size} bytes)</span>
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Path</span>
+            <span class="prop-value mono">${escapeHtml(data.path)}</span>
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Modified</span>
+            <span class="prop-value">${date}</span>
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Permissions</span>
+            <span class="prop-value mono">${data.permissions}</span>
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Owner</span>
+            <span class="prop-value">${escapeHtml(data.owner)}</span>
+          </div>
+          <div class="prop-row">
+            <span class="prop-label">Group</span>
+            <span class="prop-value">${escapeHtml(data.group)}</span>
+          </div>
+        </div>
+      `;
+      
+      $("#filePropsModal").classList.remove("hidden");
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function closeFileProps() {
+    $("#filePropsModal").classList.add("hidden");
+  }
+
+  function showFilesNewModal(type) {
+    if (!filesCurrentUser) {
+      showToast("Select a user first", "warn");
+      return;
+    }
+    
+    filesNewType = type;
+    $("#filesNewModalTitle").textContent = type === "file" ? "New File" : "New Folder";
+    $("#filesNewName").value = "";
+    $("#filesNewName").placeholder = type === "file" ? "filename.html" : "folder-name";
+    $("#filesNewModal").classList.remove("hidden");
+    setTimeout(() => $("#filesNewName").focus(), 100);
+  }
+
+  function closeFilesNewModal() {
+    $("#filesNewModal").classList.add("hidden");
+  }
+
+  async function handleFilesCreate() {
+    const name = $("#filesNewName").value.trim();
+    if (!name) {
+      showToast("Enter a name", "warn");
+      return;
+    }
+
+    const endpoint = filesNewType === "file" ? "create-file" : "create-directory";
+    const path = filesCurrentPath ? `?path=${encodeURIComponent(filesCurrentPath)}` : "";
+
+    try {
+      const { res, data } = await api(`/files/${endpoint}/${encodeURIComponent(filesCurrentUser)}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, content: "" }),
+      });
+
+      if (res.ok) {
+        showToast(`${filesNewType === "file" ? "File" : "Folder"} created`, "success");
+        closeFilesNewModal();
+        loadFilesDirectory();
+      } else {
+        showToast(data.detail || "Failed to create", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function handleFilesUpload() {
+    const input = $("#filesUploadInput");
+    const files = input.files;
+    
+    if (!files.length) return;
+    if (!filesCurrentUser) {
+      showToast("Select a user first", "warn");
+      return;
+    }
+
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const path = filesCurrentPath ? `?path=${encodeURIComponent(filesCurrentPath)}` : "";
+        const url = resolveUrl(`/files/upload/${encodeURIComponent(filesCurrentUser)}${path}`);
+        
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` },
+          body: formData,
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          showToast(`Uploaded: ${file.name}`, "success");
+        } else {
+          showToast(`Failed: ${data.detail || file.name}`, "error");
+        }
+      } catch (err) {
+        showToast(`Upload error: ${err.message}`, "error");
+      }
+    }
+
+    input.value = "";
+    loadFilesDirectory();
+  }
+
+  function renameFile(path, currentName) {
+    filesSelectedItem = path;
+    $("#filesRenameName").value = currentName;
+    $("#filesRenameModal").classList.remove("hidden");
+    setTimeout(() => $("#filesRenameName").focus(), 100);
+  }
+
+  function closeRenameModal() {
+    $("#filesRenameModal").classList.add("hidden");
+  }
+
+  async function handleRenameApply() {
+    const newName = $("#filesRenameName").value.trim();
+    if (!newName) {
+      showToast("Enter a name", "warn");
+      return;
+    }
+
+    try {
+      const { res, data } = await api(`/files/rename/${encodeURIComponent(filesCurrentUser)}?path=${encodeURIComponent(filesSelectedItem)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_name: newName }),
+      });
+
+      if (res.ok) {
+        showToast("Renamed successfully", "success");
+        closeRenameModal();
+        loadFilesDirectory();
+      } else {
+        showToast(data.detail || "Failed to rename", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function chmodFile(path) {
+    filesSelectedItem = path;
+    $("#filesChmodValue").value = "";
+    $("#filesChmodModal").classList.remove("hidden");
+    setTimeout(() => $("#filesChmodValue").focus(), 100);
+  }
+
+  function closeChmodModal() {
+    $("#filesChmodModal").classList.add("hidden");
+  }
+
+  async function handleChmodApply() {
+    const mode = $("#filesChmodValue").value.trim();
+    if (!mode || !/^[0-7]{3,4}$/.test(mode)) {
+      showToast("Enter valid octal mode (e.g., 755)", "warn");
+      return;
+    }
+
+    try {
+      const { res, data } = await api(`/files/chmod/${encodeURIComponent(filesCurrentUser)}?path=${encodeURIComponent(filesSelectedItem)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+
+      if (res.ok) {
+        showToast("Permissions changed", "success");
+        closeChmodModal();
+        loadFilesDirectory();
+      } else {
+        showToast(data.detail || "Failed to chmod", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function deleteFile(path, type) {
+    const label = type === "directory" ? "directory" : "file";
+    if (!confirm(`Delete this ${label}?`)) return;
+
+    const recursive = type === "directory" && confirm("Delete all contents recursively?");
+
+    try {
+      const { res, data } = await api(`/files/delete/${encodeURIComponent(filesCurrentUser)}?path=${encodeURIComponent(path)}&recursive=${recursive}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        showToast("Deleted successfully", "success");
+        loadFilesDirectory();
+      } else {
+        showToast(data.detail || "Failed to delete", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  // ============================================================
+  // Database Management
+  // ============================================================
+  let dbCurrentUser = "";
+  let dbCurrentDatabase = "";
+
+  async function loadDatabasesView() {
+    await loadDatabaseUsers();
+    setupDatabaseEventListeners();
+  }
+
+  async function loadDatabaseUsers() {
+    try {
+      const { res, data } = await api("/users?");
+      if (!res.ok) return;
+
+      const select = $("#dbUserSelect");
+      select.innerHTML = '<option value="">Select a user...</option>' +
+        data.users.map((u) => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.username)} (${escapeHtml(u.term)})</option>`).join("");
+    } catch (err) {
+      console.error("Failed to load users:", err);
+    }
+  }
+
+  function setupDatabaseEventListeners() {
+    // User selection
+    $("#dbUserSelect")?.addEventListener("change", (e) => {
+      dbCurrentUser = e.target.value;
+      if (dbCurrentUser) {
+        loadDatabases();
+        loadDatabaseUser();
+        $("#dbUserInfo").style.display = "block";
+      } else {
+        $("#dbTableBody").innerHTML = '<tr><td colspan="4" class="muted">Select a user to view databases.</td></tr>';
+        $("#dbUserInfo").style.display = "none";
+        $("#dbCount").textContent = "—";
+        $("#dbTableCount").textContent = "—";
+        $("#dbTotalSize").textContent = "—";
+      }
+    });
+
+    // Refresh
+    $("#dbRefreshBtn")?.addEventListener("click", () => {
+      if (dbCurrentUser) {
+        loadDatabases();
+        loadDatabaseUser();
+      }
+    });
+
+    // Create database
+    $("#dbCreateBtn")?.addEventListener("click", () => {
+      if (!dbCurrentUser) {
+        showToast("Select a user first", "warn");
+        return;
+      }
+      $("#dbNamePrefix").textContent = dbCurrentUser + "_";
+      $("#dbFullName").textContent = dbCurrentUser + "_";
+      $("#dbCreateName").value = "";
+      $("#dbCreateModal").classList.remove("hidden");
+    });
+
+    // Create confirmation
+    $("#dbCreateConfirmBtn")?.addEventListener("click", handleCreateDatabase);
+    $("#dbCreateName")?.addEventListener("input", (e) => {
+      $("#dbFullName").textContent = dbCurrentUser + "_" + e.target.value;
+    });
+
+    // Password
+    $("#dbSetPasswordBtn")?.addEventListener("click", () => {
+      if (!dbCurrentUser) {
+        showToast("Select a user first", "warn");
+        return;
+      }
+      $("#dbPassword").value = "";
+      $("#dbPasswordConfirm").value = "";
+      $("#dbPasswordModal").classList.remove("hidden");
+    });
+
+    $("#dbSetPasswordConfirmBtn")?.addEventListener("click", handleSetDbPassword);
+
+    // Create MySQL user
+    $("#dbCreateUserBtn")?.addEventListener("click", handleCreateDbUser);
+  }
+
+  async function loadDatabases() {
+    if (!dbCurrentUser) return;
+
+    const tbody = $("#dbTableBody");
+    tbody.innerHTML = '<tr><td colspan="4" class="muted">Loading...</td></tr>';
+
+    try {
+      const { res, data } = await api(`/databases/${encodeURIComponent(dbCurrentUser)}`);
+
+      if (!res.ok) {
+        tbody.innerHTML = `<tr><td colspan="4" class="muted">Error: ${data.detail || "Failed to load"}</td></tr>`;
+        return;
+      }
+
+      // Update stats
+      let totalTables = 0;
+      let totalSize = 0;
+      data.forEach(db => {
+        totalTables += db.tables;
+        totalSize += db.size_bytes;
+      });
+
+      $("#dbCount").textContent = data.length;
+      $("#dbTableCount").textContent = totalTables;
+      $("#dbTotalSize").textContent = formatBytes(totalSize);
+
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="muted">No databases found. Create one to get started.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.map(db => `
+        <tr>
+          <td class="mono">${escapeHtml(db.name)}</td>
+          <td>${db.tables}</td>
+          <td>${db.size_formatted}</td>
+          <td>
+            <button class="btn btn-sm" onclick="app.showDbDetail('${escapeHtml(db.name)}')" title="View tables">📊 View</button>
+            <button class="btn btn-sm" onclick="app.exportDatabase('${escapeHtml(db.name)}')" title="Export as SQL">⬇️ Export</button>
+            <button class="btn btn-sm danger" onclick="app.dropDatabase('${escapeHtml(db.name)}')" title="Drop database">🗑️ Drop</button>
+          </td>
+        </tr>
+      `).join("");
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="4" class="muted">Error: ${err.message}</td></tr>`;
+    }
+  }
+
+  async function loadDatabaseUser() {
+    if (!dbCurrentUser) return;
+
+    const body = $("#dbUserInfoBody");
+    body.innerHTML = '<p class="muted">Loading...</p>';
+
+    try {
+      const { res, data } = await api(`/databases/${encodeURIComponent(dbCurrentUser)}/user/info`);
+
+      if (!res.ok) {
+        body.innerHTML = `<p class="muted">Error: ${data.detail || "Failed to load"}</p>`;
+        return;
+      }
+
+      if (data.privileges.length === 0) {
+        body.innerHTML = `
+          <p class="muted">No MySQL user exists for this account.</p>
+          <p class="small">Click "Create MySQL User" to set one up.</p>
+        `;
+        $("#dbSetPasswordBtn").disabled = true;
+        $("#dbCreateUserBtn").style.display = "inline-block";
+      } else {
+        body.innerHTML = `
+          <div class="props-grid">
+            <div class="prop-row">
+              <span class="prop-label">MySQL Username</span>
+              <span class="prop-value mono">${escapeHtml(data.username)}</span>
+            </div>
+            <div class="prop-row">
+              <span class="prop-label">Host</span>
+              <span class="prop-value mono">${escapeHtml(data.host)}</span>
+            </div>
+          </div>
+        `;
+        $("#dbSetPasswordBtn").disabled = false;
+        $("#dbCreateUserBtn").style.display = "none";
+      }
+    } catch (err) {
+      body.innerHTML = `<p class="muted">Error: ${err.message}</p>`;
+    }
+  }
+
+  async function handleCreateDatabase() {
+    const name = $("#dbCreateName").value.trim();
+    if (!name) {
+      showToast("Enter a database name", "warn");
+      return;
+    }
+
+    try {
+      const { res, data } = await api(`/databases/${encodeURIComponent(dbCurrentUser)}`, {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+
+      if (res.ok) {
+        showToast(`Database ${data.name} created`, "success");
+        closeDbCreateModal();
+        loadDatabases();
+      } else {
+        showToast(data.detail || "Failed to create database", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function handleSetDbPassword() {
+    const password = $("#dbPassword").value;
+    const confirm = $("#dbPasswordConfirm").value;
+
+    if (!password) {
+      showToast("Enter a password", "warn");
+      return;
+    }
+
+    if (password !== confirm) {
+      showToast("Passwords do not match", "error");
+      return;
+    }
+
+    try {
+      const { res, data } = await api(`/databases/${encodeURIComponent(dbCurrentUser)}/user/password`, {
+        method: "PUT",
+        body: JSON.stringify({ password }),
+      });
+
+      if (res.ok) {
+        showToast("Password updated", "success");
+        closeDbPasswordModal();
+      } else {
+        showToast(data.detail || "Failed to set password", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function handleCreateDbUser() {
+    const password = prompt("Enter password for MySQL user (or leave blank to cancel):");
+    if (!password) return;
+
+    try {
+      const { res, data } = await api(`/databases/${encodeURIComponent(dbCurrentUser)}/user`, {
+        method: "POST",
+        body: JSON.stringify({ password }),
+      });
+
+      if (res.ok) {
+        showToast("MySQL user created", "success");
+        loadDatabaseUser();
+      } else {
+        showToast(data.detail || "Failed to create user", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function showDbDetail(dbName) {
+    dbCurrentDatabase = dbName;
+    $("#dbDetailTitle").textContent = dbName;
+    $("#dbDetailModal").classList.remove("hidden");
+
+    const tbody = $("#dbDetailTableBody");
+    tbody.innerHTML = '<tr><td colspan="4" class="muted">Loading...</td></tr>';
+
+    try {
+      const { res, data } = await api(`/databases/${encodeURIComponent(dbCurrentUser)}/detail/${encodeURIComponent(dbName)}`);
+
+      if (!res.ok) {
+        tbody.innerHTML = `<tr><td colspan="4" class="muted">Error: ${data.detail || "Failed to load"}</td></tr>`;
+        return;
+      }
+
+      if (!data.tables.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="muted">No tables in this database.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.tables.map(t => `
+        <tr>
+          <td class="mono">${escapeHtml(t.name)}</td>
+          <td>${escapeHtml(t.engine)}</td>
+          <td>${t.rows.toLocaleString()}</td>
+          <td>${t.size_formatted}</td>
+        </tr>
+      `).join("");
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="4" class="muted">Error: ${err.message}</td></tr>`;
+    }
+  }
+
+  async function exportDatabase(dbName) {
+    if (!dbName) dbName = dbCurrentDatabase;
+    try {
+      const res = await fetch(`${apiBase}/databases/${encodeURIComponent(dbCurrentUser)}/${encodeURIComponent(dbName)}/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${dbName}.sql`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast("Database exported", "success");
+      } else {
+        const data = await res.json();
+        showToast(data.detail || "Export failed", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function dropDatabase(dbName) {
+    if (!confirm(`Are you sure you want to DROP database "${dbName}"?\n\nThis action cannot be undone!`)) {
+      return;
+    }
+
+    try {
+      const { res, data } = await api(`/databases/${encodeURIComponent(dbCurrentUser)}/${encodeURIComponent(dbName)}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        showToast("Database dropped", "success");
+        loadDatabases();
+      } else {
+        showToast(data.detail || "Failed to drop database", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function closeDbCreateModal() {
+    $("#dbCreateModal").classList.add("hidden");
+  }
+
+  function closeDbPasswordModal() {
+    $("#dbPasswordModal").classList.add("hidden");
+  }
+
+  function closeDbDetailModal() {
+    $("#dbDetailModal").classList.add("hidden");
+  }
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  }
+
+  // ============================================================
+  // FTP Management
+  // ============================================================
+  let ftpCurrentUser = "";
+
+  async function loadFtpView() {
+    await loadFtpUsers();
+    setupFtpEventListeners();
+    loadFtpSessions();
+  }
+
+  async function loadFtpUsers() {
+    try {
+      const { res, data } = await api("/users?");
+      if (!res.ok) return;
+
+      const select = $("#ftpUserSelect");
+      select.innerHTML = '<option value="">Select a user...</option>' +
+        data.users.map((u) => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.username)} (${escapeHtml(u.term)})</option>`).join("");
+    } catch (err) {
+      console.error("Failed to load users:", err);
+    }
+  }
+
+  function setupFtpEventListeners() {
+    // User selection
+    $("#ftpUserSelect")?.addEventListener("change", (e) => {
+      ftpCurrentUser = e.target.value;
+      if (ftpCurrentUser) {
+        loadFtpAccounts();
+      } else {
+        $("#ftpTableBody").innerHTML = '<tr><td colspan="4" class="muted">Select a user to view FTP accounts.</td></tr>';
+        $("#ftpCount").textContent = "—";
+      }
+    });
+
+    // Refresh
+    $("#ftpRefreshBtn")?.addEventListener("click", () => {
+      if (ftpCurrentUser) {
+        loadFtpAccounts();
+      }
+      loadFtpSessions();
+    });
+
+    // Create FTP account
+    $("#ftpCreateBtn")?.addEventListener("click", () => {
+      if (!ftpCurrentUser) {
+        showToast("Select a user first", "warn");
+        return;
+      }
+      $("#ftpNamePrefix").textContent = ftpCurrentUser + "_";
+      $("#ftpCreateName").value = "";
+      $("#ftpCreatePassword").value = "";
+      $("#ftpCreateModal").classList.remove("hidden");
+    });
+
+    // Create confirmation
+    $("#ftpCreateConfirmBtn")?.addEventListener("click", handleCreateFtpAccount);
+
+    // Set password confirmation
+    $("#ftpSetPasswordConfirmBtn")?.addEventListener("click", handleSetFtpPassword);
+  }
+
+  async function loadFtpAccounts() {
+    if (!ftpCurrentUser) return;
+
+    const tbody = $("#ftpTableBody");
+    tbody.innerHTML = '<tr><td colspan="4" class="muted">Loading...</td></tr>';
+
+    try {
+      const { res, data } = await api(`/ftp/accounts/${encodeURIComponent(ftpCurrentUser)}`);
+
+      if (!res.ok) {
+        tbody.innerHTML = `<tr><td colspan="4" class="muted">Error: ${data.detail || "Failed to load"}</td></tr>`;
+        return;
+      }
+
+      $("#ftpCount").textContent = data.length;
+
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="muted">No FTP accounts found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.map(acc => `
+        <tr>
+          <td class="mono">${escapeHtml(acc.username)}</td>
+          <td class="mono small">${escapeHtml(acc.home_directory)}</td>
+          <td><span class="pill ${acc.enabled ? 'ok' : 'warn'}">${acc.enabled ? 'Active' : 'Disabled'}</span></td>
+          <td>
+            <button class="btn btn-sm" onclick="app.setFtpPassword('${escapeHtml(acc.username)}')" title="Set password">🔑 Password</button>
+            ${acc.enabled 
+              ? `<button class="btn btn-sm" onclick="app.disableFtpAccount('${escapeHtml(acc.username)}')" title="Disable">⏸️ Disable</button>`
+              : `<button class="btn btn-sm" onclick="app.enableFtpAccount('${escapeHtml(acc.username)}')" title="Enable">▶️ Enable</button>`
+            }
+            ${acc.username !== ftpCurrentUser 
+              ? `<button class="btn btn-sm danger" onclick="app.deleteFtpAccount('${escapeHtml(acc.username)}')" title="Delete">🗑️ Delete</button>`
+              : ''
+            }
+          </td>
+        </tr>
+      `).join("");
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="4" class="muted">Error: ${err.message}</td></tr>`;
+    }
+  }
+
+  async function loadFtpSessions() {
+    try {
+      const { res, data } = await api("/ftp/sessions");
+
+      if (!res.ok) {
+        $("#ftpSessions").textContent = "—";
+        return;
+      }
+
+      $("#ftpSessions").textContent = data.length;
+
+      if (data.length > 0) {
+        $("#ftpSessionsCard").style.display = "block";
+        $("#ftpSessionsTableBody").innerHTML = data.map(s => `
+          <tr>
+            <td class="mono">${escapeHtml(s.username)}</td>
+            <td>${escapeHtml(s.ip_address)}</td>
+            <td>${escapeHtml(s.connected_since)}</td>
+            <td class="mono small">${escapeHtml(s.current_dir)}</td>
+            <td>
+              <button class="btn btn-sm danger" onclick="app.kickFtpSession('${escapeHtml(s.username)}')" title="Disconnect">Kick</button>
+            </td>
+          </tr>
+        `).join("");
+      } else {
+        $("#ftpSessionsCard").style.display = "none";
+      }
+    } catch (err) {
+      console.error("Failed to load FTP sessions:", err);
+      $("#ftpSessions").textContent = "—";
+    }
+  }
+
+  async function handleCreateFtpAccount() {
+    const name = $("#ftpCreateName").value.trim();
+    if (!name) {
+      showToast("Enter an account name", "warn");
+      return;
+    }
+
+    const password = $("#ftpCreatePassword").value || null;
+
+    try {
+      const { res, data } = await api(`/ftp/accounts/${encodeURIComponent(ftpCurrentUser)}`, {
+        method: "POST",
+        body: JSON.stringify({ name, password }),
+      });
+
+      if (res.ok) {
+        closeFtpCreateModal();
+        // Show credentials modal
+        $("#ftpCreatedUsername").textContent = data.account.username;
+        $("#ftpCreatedPassword").textContent = data.password;
+        $("#ftpCreatedDirectory").textContent = data.account.home_directory;
+        $("#ftpCreatedModal").classList.remove("hidden");
+        loadFtpAccounts();
+      } else {
+        showToast(data.detail || "Failed to create FTP account", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function setFtpPassword(ftpName) {
+    $("#ftpPasswordAccount").value = ftpName;
+    $("#ftpNewPassword").value = "";
+    $("#ftpPasswordModal").classList.remove("hidden");
+  }
+
+  async function handleSetFtpPassword() {
+    const ftpName = $("#ftpPasswordAccount").value;
+    const password = $("#ftpNewPassword").value;
+
+    if (!password) {
+      showToast("Enter a password", "warn");
+      return;
+    }
+
+    try {
+      const { res, data } = await api(`/ftp/accounts/${encodeURIComponent(ftpCurrentUser)}/${encodeURIComponent(ftpName)}/password`, {
+        method: "PUT",
+        body: JSON.stringify({ password }),
+      });
+
+      if (res.ok) {
+        showToast("Password updated", "success");
+        closeFtpPasswordModal();
+      } else {
+        showToast(data.detail || "Failed to set password", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function enableFtpAccount(ftpName) {
+    try {
+      const { res, data } = await api(`/ftp/accounts/${encodeURIComponent(ftpCurrentUser)}/${encodeURIComponent(ftpName)}/enable`, {
+        method: "POST",
+      });
+
+      if (res.ok) {
+        showToast("FTP account enabled", "success");
+        loadFtpAccounts();
+      } else {
+        showToast(data.detail || "Failed to enable account", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function disableFtpAccount(ftpName) {
+    try {
+      const { res, data } = await api(`/ftp/accounts/${encodeURIComponent(ftpCurrentUser)}/${encodeURIComponent(ftpName)}/disable`, {
+        method: "POST",
+      });
+
+      if (res.ok) {
+        showToast("FTP account disabled", "success");
+        loadFtpAccounts();
+      } else {
+        showToast(data.detail || "Failed to disable account", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function deleteFtpAccount(ftpName) {
+    if (!confirm(`Delete FTP account "${ftpName}"?`)) {
+      return;
+    }
+
+    try {
+      const { res, data } = await api(`/ftp/accounts/${encodeURIComponent(ftpCurrentUser)}/${encodeURIComponent(ftpName)}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        showToast("FTP account deleted", "success");
+        loadFtpAccounts();
+      } else {
+        showToast(data.detail || "Failed to delete account", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function kickFtpSession(username) {
+    try {
+      const { res, data } = await api(`/ftp/sessions/${encodeURIComponent(username)}/kick`, {
+        method: "POST",
+      });
+
+      if (res.ok) {
+        showToast("Session disconnected", "success");
+        loadFtpSessions();
+      } else {
+        showToast(data.detail || "Failed to disconnect session", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function closeFtpCreateModal() {
+    $("#ftpCreateModal").classList.add("hidden");
+  }
+
+  function closeFtpPasswordModal() {
+    $("#ftpPasswordModal").classList.add("hidden");
+  }
+
+  function closeFtpCreatedModal() {
+    $("#ftpCreatedModal").classList.add("hidden");
+  }
+
+  // ============================================================
+  // Cron View
+  // ============================================================
+  let cronCurrentUsername = "";
+
+  async function loadCronView() {
+    // View is ready, user needs to select a username
+  }
+
+  async function loadCronJobs(username) {
+    if (!username) {
+      showToast("Enter a username", "warn");
+      return;
+    }
+    cronCurrentUsername = username;
+    const container = $("#cronJobsCard");
+    const tbody = $("#cronTableBody");
+
+    try {
+      const { res, data } = await api(`/cron/${encodeURIComponent(username)}`);
+      if (!res.ok) {
+        showToast(data.detail || "Failed to load cron jobs", "error");
+        return;
+      }
+
+      container.style.display = "block";
+      $("#cronUserLabel").textContent = username;
+
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="muted">No cron jobs</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.map((job) => `
+        <tr>
+          <td class="mono">${escapeHtml(job.schedule)}</td>
+          <td class="mono">${escapeHtml(job.command)}</td>
+          <td>${escapeHtml(job.comment || "—")}</td>
+          <td><span class="pill ${job.enabled ? 'ok' : 'warn'}">${job.enabled ? "Enabled" : "Disabled"}</span></td>
+          <td>
+            <button class="btn btn-sm" onclick="app.toggleCronJob(${job.id})">Toggle</button>
+            <button class="btn btn-sm" onclick="app.editCronJob(${job.id})">Edit</button>
+            <button class="btn btn-sm danger" onclick="app.deleteCronJob(${job.id})">Delete</button>
+          </td>
+        </tr>
+      `).join("");
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function showCronModal(editId = null) {
+    const modal = $("#cronModal");
+    const title = $("#cronModalTitle");
+    title.textContent = editId ? "Edit Cron Job" : "Add Cron Job";
+    $("#cronEditId").value = editId || "";
+
+    // Clear form
+    if (!editId) {
+      $("#cronMinute").value = "*";
+      $("#cronHour").value = "*";
+      $("#cronDay").value = "*";
+      $("#cronMonth").value = "*";
+      $("#cronWeekday").value = "*";
+      $("#cronCommand").value = "";
+      $("#cronComment").value = "";
+    }
+
+    modal.classList.remove("hidden");
+  }
+
+  function closeCronModal() {
+    $("#cronModal").classList.add("hidden");
+  }
+
+  async function saveCronJob(e) {
+    e.preventDefault();
+    const editId = $("#cronEditId").value;
+    const body = {
+      minute: $("#cronMinute").value,
+      hour: $("#cronHour").value,
+      day: $("#cronDay").value,
+      month: $("#cronMonth").value,
+      weekday: $("#cronWeekday").value,
+      command: $("#cronCommand").value,
+      comment: $("#cronComment").value || null,
+    };
+
+    try {
+      const method = editId ? "PUT" : "POST";
+      const path = editId
+        ? `/cron/${encodeURIComponent(cronCurrentUsername)}/${editId}`
+        : `/cron/${encodeURIComponent(cronCurrentUsername)}`;
+
+      const { res, data } = await api(path, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        showToast(editId ? "Cron job updated" : "Cron job created", "success");
+        closeCronModal();
+        loadCronJobs(cronCurrentUsername);
+      } else {
+        showToast(data.detail || "Failed to save cron job", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function toggleCronJob(jobId) {
+    try {
+      const { res, data } = await api(`/cron/${encodeURIComponent(cronCurrentUsername)}/${jobId}/toggle`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        showToast("Cron job toggled", "success");
+        loadCronJobs(cronCurrentUsername);
+      } else {
+        showToast(data.detail || "Failed to toggle", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function editCronJob(jobId) {
+    try {
+      const { res, data } = await api(`/cron/${encodeURIComponent(cronCurrentUsername)}/${jobId}`);
+      if (res.ok) {
+        $("#cronMinute").value = data.minute;
+        $("#cronHour").value = data.hour;
+        $("#cronDay").value = data.day;
+        $("#cronMonth").value = data.month;
+        $("#cronWeekday").value = data.weekday;
+        $("#cronCommand").value = data.command;
+        $("#cronComment").value = data.comment || "";
+        showCronModal(jobId);
+      } else {
+        showToast(data.detail || "Failed to load job", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function deleteCronJob(jobId) {
+    if (!confirm("Delete this cron job?")) return;
+    try {
+      const { res, data } = await api(`/cron/${encodeURIComponent(cronCurrentUsername)}/${jobId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        showToast("Cron job deleted", "success");
+        loadCronJobs(cronCurrentUsername);
+      } else {
+        showToast(data.detail || "Failed to delete", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  // ============================================================
+  // Security View
+  // ============================================================
+  let securityCurrentUsername = "";
+
+  async function loadSecurityView() {
+    loadFail2Ban();
+    loadUfwStatus();
+    loadModSecurityStatus();
+  }
+
+  // SSH Keys
+  async function loadSshKeys(username) {
+    if (!username) {
+      showToast("Enter a username", "warn");
+      return;
+    }
+    securityCurrentUsername = username;
+    const container = $("#sshKeysContainer");
+    const list = $("#sshKeysList");
+
+    try {
+      const { res, data } = await api(`/security/ssh-keys/${encodeURIComponent(username)}`);
+      if (!res.ok) {
+        showToast(data.detail || "Failed to load SSH keys", "error");
+        return;
+      }
+
+      container.style.display = "block";
+      $("#sshUserLabel").textContent = username;
+
+      if (!data.length) {
+        list.innerHTML = '<p class="muted">No SSH keys</p>';
+        return;
+      }
+
+      list.innerHTML = data.map((key) => `
+        <div class="ssh-key-item">
+          <div class="ssh-key-info">
+            <span class="pill neutral">${escapeHtml(key.type)}</span>
+            <span class="mono">${escapeHtml(key.key.substring(0, 40))}...</span>
+            <span class="muted">${escapeHtml(key.comment || "")}</span>
+          </div>
+          <button class="btn btn-sm danger" onclick="app.deleteSshKey(${key.id})">Remove</button>
+        </div>
+      `).join("");
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function addSshKey() {
+    const key = $("#newSshKey").value.trim();
+    if (!key || !securityCurrentUsername) {
+      showToast("Enter an SSH key", "warn");
+      return;
+    }
+
+    try {
+      const { res, data } = await api(`/security/ssh-keys/${encodeURIComponent(securityCurrentUsername)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      });
+      if (res.ok) {
+        showToast("SSH key added", "success");
+        $("#newSshKey").value = "";
+        loadSshKeys(securityCurrentUsername);
+      } else {
+        showToast(data.detail || "Failed to add key", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function deleteSshKey(keyId) {
+    if (!confirm("Remove this SSH key?")) return;
+    try {
+      const { res, data } = await api(`/security/ssh-keys/${encodeURIComponent(securityCurrentUsername)}/${keyId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        showToast("SSH key removed", "success");
+        loadSshKeys(securityCurrentUsername);
+      } else {
+        showToast(data.detail || "Failed to remove key", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  // Fail2Ban
+  async function loadFail2Ban() {
+    try {
+      const { res, data } = await api("/security/fail2ban/status");
+      const statusPill = $("#fail2banStatus");
+      const container = $("#fail2banJails");
+      const select = $("#fail2banJailSelect");
+
+      if (res.ok) {
+        statusPill.textContent = data.running ? "Running" : "Stopped";
+        statusPill.className = `pill ${data.running ? "ok" : "warn"}`;
+
+        if (data.jails?.length) {
+          container.innerHTML = `<p>Active jails: ${data.jails.map(j => `<span class="pill neutral">${escapeHtml(j)}</span>`).join(" ")}</p>`;
+          select.innerHTML = `<option value="">Select jail</option>` + data.jails.map(j => `<option value="${escapeHtml(j)}">${escapeHtml(j)}</option>`).join("");
+        } else {
+          container.innerHTML = '<p class="muted">No active jails</p>';
+        }
+      } else {
+        statusPill.textContent = "Error";
+        statusPill.className = "pill warn";
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function banIP() {
+    const jail = $("#fail2banJailSelect").value;
+    const ip = $("#fail2banIP").value.trim();
+    if (!jail || !ip) {
+      showToast("Select a jail and enter an IP", "warn");
+      return;
+    }
+
+    try {
+      const { res, data } = await api(`/security/fail2ban/ban/${encodeURIComponent(jail)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip }),
+      });
+      if (res.ok) {
+        showToast(`IP ${ip} banned`, "success");
+        $("#fail2banIP").value = "";
+      } else {
+        showToast(data.detail || "Failed to ban IP", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function unbanIP() {
+    const jail = $("#fail2banJailSelect").value;
+    const ip = $("#fail2banIP").value.trim();
+    if (!jail || !ip) {
+      showToast("Select a jail and enter an IP", "warn");
+      return;
+    }
+
+    try {
+      const { res, data } = await api(`/security/fail2ban/unban/${encodeURIComponent(jail)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip }),
+      });
+      if (res.ok) {
+        showToast(`IP ${ip} unbanned`, "success");
+        $("#fail2banIP").value = "";
+      } else {
+        showToast(data.detail || "Failed to unban IP", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  // UFW
+  async function loadUfwStatus() {
+    try {
+      const { res, data } = await api("/security/ufw/status");
+      const statusPill = $("#ufwStatus");
+      const tbody = $("#ufwRulesBody");
+
+      if (res.ok) {
+        statusPill.textContent = data.enabled ? "Enabled" : "Disabled";
+        statusPill.className = `pill ${data.enabled ? "ok" : "warn"}`;
+
+        if (data.rules?.length) {
+          tbody.innerHTML = data.rules.map((rule, idx) => `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>${escapeHtml(rule.to || "any")}</td>
+              <td>${escapeHtml(rule.action || "")}</td>
+              <td>${escapeHtml(rule.from_ip || "any")}</td>
+              <td>
+                <button class="btn btn-sm danger" onclick="app.deleteUfwRule(${idx + 1})">Delete</button>
+              </td>
+            </tr>
+          `).join("");
+        } else {
+          tbody.innerHTML = '<tr><td colspan="5" class="muted">No rules configured</td></tr>';
+        }
+      } else {
+        statusPill.textContent = "Error";
+        statusPill.className = "pill warn";
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function enableUfw() {
+    try {
+      const { res, data } = await api("/security/ufw/enable", { method: "POST" });
+      if (res.ok) {
+        showToast("UFW enabled", "success");
+        loadUfwStatus();
+      } else {
+        showToast(data.detail || "Failed to enable UFW", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function disableUfw() {
+    try {
+      const { res, data } = await api("/security/ufw/disable", { method: "POST" });
+      if (res.ok) {
+        showToast("UFW disabled", "success");
+        loadUfwStatus();
+      } else {
+        showToast(data.detail || "Failed to disable UFW", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function addUfwRule() {
+    const ruleType = $("#ufwRuleType").value;
+    const port = $("#ufwPort").value.trim();
+    const protocol = $("#ufwProtocol").value || null;
+    const fromIP = $("#ufwFromIP").value.trim() || null;
+
+    if (!port) {
+      showToast("Enter a port", "warn");
+      return;
+    }
+
+    try {
+      const { res, data } = await api("/security/ufw/rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rule_type: ruleType, port, protocol, from_ip: fromIP }),
+      });
+      if (res.ok) {
+        showToast("Rule added", "success");
+        $("#ufwPort").value = "";
+        $("#ufwFromIP").value = "";
+        loadUfwStatus();
+      } else {
+        showToast(data.detail || "Failed to add rule", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function deleteUfwRule(ruleNumber) {
+    if (!confirm(`Delete rule #${ruleNumber}?`)) return;
+    try {
+      const { res, data } = await api(`/security/ufw/rules/${ruleNumber}`, { method: "DELETE" });
+      if (res.ok) {
+        showToast("Rule deleted", "success");
+        loadUfwStatus();
+      } else {
+        showToast(data.detail || "Failed to delete rule", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  // ModSecurity
+  async function loadModSecurityStatus() {
+    try {
+      const { res, data } = await api("/security/modsecurity/status");
+      const statusPill = $("#modsecStatus");
+      const modeSelect = $("#modsecMode");
+
+      if (res.ok) {
+        statusPill.textContent = data.enabled ? data.mode : "Disabled";
+        statusPill.className = `pill ${data.enabled ? "ok" : "warn"}`;
+        modeSelect.value = data.mode;
+      } else {
+        statusPill.textContent = "Error";
+        statusPill.className = "pill warn";
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function setModSecurityMode() {
+    const mode = $("#modsecMode").value;
+    try {
+      const { res, data } = await api("/security/modsecurity/mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      if (res.ok) {
+        showToast(`ModSecurity mode set to ${mode}`, "success");
+        loadModSecurityStatus();
+      } else {
+        showToast(data.detail || "Failed to set mode", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  // ============================================================
+  // SSL View
+  // ============================================================
+  async function loadSslView() {
+    loadCertificates();
+    loadSslWarnings();
+  }
+
+  async function loadCertificates() {
+    try {
+      const { res, data } = await api("/ssl/certificates");
+      const tbody = $("#sslTableBody");
+
+      if (res.ok) {
+        const valid = data.filter(c => !c.is_expired).length;
+        const expiring = data.filter(c => c.is_expiring_soon && !c.is_expired).length;
+
+        $("#sslTotalCerts").textContent = data.length;
+        $("#sslValidCerts").textContent = valid;
+        $("#sslExpiringSoon").textContent = expiring;
+
+        if (!data.length) {
+          tbody.innerHTML = '<tr><td colspan="5" class="muted">No certificates found</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.map((cert) => {
+          const statusClass = cert.is_expired ? "warn" : cert.is_expiring_soon ? "warn" : "ok";
+          const statusText = cert.is_expired ? "Expired" : cert.is_expiring_soon ? "Expiring Soon" : "Valid";
+          return `
+            <tr>
+              <td>${escapeHtml(cert.domain)}</td>
+              <td>${escapeHtml(cert.valid_until)}</td>
+              <td>${cert.days_remaining}</td>
+              <td><span class="pill ${statusClass}">${statusText}</span></td>
+              <td>
+                <button class="btn btn-sm" onclick="app.showCertDetail('${escapeHtml(cert.domain)}')">Details</button>
+                <button class="btn btn-sm" onclick="app.renewCert('${escapeHtml(cert.domain)}')">Renew</button>
+                <button class="btn btn-sm danger" onclick="app.deleteCert('${escapeHtml(cert.domain)}')">Delete</button>
+              </td>
+            </tr>
+          `;
+        }).join("");
+      } else {
+        tbody.innerHTML = '<tr><td colspan="5" class="muted">Failed to load certificates</td></tr>';
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function loadSslWarnings() {
+    try {
+      const { res, data } = await api("/ssl/warnings?days_threshold=30");
+      const card = $("#sslWarningsCard");
+      const container = $("#sslWarnings");
+
+      if (res.ok && data.warnings?.length) {
+        card.style.display = "block";
+        container.innerHTML = data.warnings.map((w) => `
+          <div class="warning-item">
+            <span class="pill warn">⚠️</span>
+            <span><strong>${escapeHtml(w.domain)}</strong> expires in ${w.days_remaining} days (${escapeHtml(w.valid_until)})</span>
+          </div>
+        `).join("");
+      } else {
+        card.style.display = "none";
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function showSslRequestModal() {
+    $("#sslRequestModal").classList.remove("hidden");
+    $("#sslDomains").value = "";
+    $("#sslEmail").value = "";
+    $("#sslWebroot").value = "";
+    $("#sslStaging").checked = false;
+  }
+
+  function closeSslModal() {
+    $("#sslRequestModal").classList.add("hidden");
+  }
+
+  function closeSslDetailModal() {
+    $("#sslDetailModal").classList.add("hidden");
+  }
+
+  async function requestCertificate(e) {
+    e.preventDefault();
+    const domains = $("#sslDomains").value.split(",").map(d => d.trim()).filter(Boolean);
+    const email = $("#sslEmail").value.trim() || null;
+    const webroot = $("#sslWebroot").value.trim() || null;
+    const staging = $("#sslStaging").checked;
+
+    if (!domains.length) {
+      showToast("Enter at least one domain", "warn");
+      return;
+    }
+
+    try {
+      const { res, data } = await api("/ssl/certificates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domains, email, webroot, staging }),
+      });
+      if (res.ok) {
+        showToast("Certificate requested", "success");
+        closeSslModal();
+        loadCertificates();
+      } else {
+        showToast(data.detail || "Failed to request certificate", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function showCertDetail(domain) {
+    try {
+      const { res, data } = await api(`/ssl/certificates/${encodeURIComponent(domain)}`);
+      const modal = $("#sslDetailModal");
+      const body = $("#sslDetailBody");
+
+      if (res.ok) {
+        const statusClass = data.is_expired ? 'warn' : data.is_expiring_soon ? 'warn' : 'ok';
+        const statusText = data.is_expired ? 'Expired' : data.is_expiring_soon ? 'Expiring Soon' : 'Valid';
+        body.innerHTML = `
+          <div class="cert-detail">
+            <div class="detail-row"><strong>Domain:</strong> ${escapeHtml(data.domain)}</div>
+            <div class="detail-row"><strong>Issuer:</strong> ${escapeHtml(data.issuer)}</div>
+            <div class="detail-row"><strong>Valid From:</strong> ${escapeHtml(data.valid_from)}</div>
+            <div class="detail-row"><strong>Valid Until:</strong> ${escapeHtml(data.valid_until)}</div>
+            <div class="detail-row"><strong>Serial:</strong> <code>${escapeHtml(data.serial)}</code></div>
+            <div class="detail-row"><strong>Days Remaining:</strong> ${data.days_remaining}</div>
+            <div class="detail-row"><strong>Status:</strong> <span class="pill ${statusClass}">${statusText}</span></div>
+            <div class="detail-row"><strong>Auto-Renew:</strong> ${data.auto_renew ? 'Yes' : 'No'}</div>
+            ${data.domains?.length > 1 ? `<div class="detail-row"><strong>All Domains:</strong> ${data.domains.map(s => escapeHtml(s)).join(", ")}</div>` : ""}
+          </div>
+        `;
+        modal.classList.remove("hidden");
+      } else {
+        showToast(data.detail || "Failed to load certificate details", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function renewCert(domain) {
+    try {
+      const { res, data } = await api(`/ssl/certificates/${encodeURIComponent(domain)}/renew?force=true`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        showToast(`Certificate for ${domain} renewed`, "success");
+        loadCertificates();
+      } else {
+        showToast(data.detail || "Failed to renew certificate", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function renewAllCerts() {
+    try {
+      const { res, data } = await api("/ssl/certificates/renew-all", { method: "POST" });
+      if (res.ok) {
+        showToast("All certificates renewed", "success");
+        loadCertificates();
+      } else {
+        showToast(data.detail || "Failed to renew certificates", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function deleteCert(domain) {
+    if (!confirm(`Delete certificate for ${domain}?`)) return;
+    try {
+      const { res, data } = await api(`/ssl/certificates/${encodeURIComponent(domain)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        showToast("Certificate deleted", "success");
+        loadCertificates();
+      } else {
+        showToast(data.detail || "Failed to delete certificate", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  // ============================================================
   // Init
   // ============================================================
   async function init() {
@@ -2158,6 +4010,61 @@
     deleteDnsRecord,
     closeDnsModal,
     showToast,
+    // File Manager
+    editFile,
+    closeFileEditor,
+    downloadFile,
+    showFileProps,
+    closeFileProps,
+    navigateToPath,
+    renameFile,
+    closeRenameModal,
+    chmodFile,
+    closeChmodModal,
+    deleteFile,
+    closeFilesNewModal,
+    // Database Management
+    showDbDetail,
+    exportDatabase,
+    dropDatabase,
+    closeDbCreateModal,
+    closeDbPasswordModal,
+    closeDbDetailModal,
+    // FTP Management
+    setFtpPassword,
+    enableFtpAccount,
+    disableFtpAccount,
+    deleteFtpAccount,
+    kickFtpSession,
+    closeFtpCreateModal,
+    closeFtpPasswordModal,
+    closeFtpCreatedModal,
+    // Cron Management
+    loadCronJobs,
+    showCronModal,
+    closeCronModal,
+    toggleCronJob,
+    editCronJob,
+    deleteCronJob,
+    // Security Management
+    loadSshKeys,
+    addSshKey,
+    deleteSshKey,
+    banIP,
+    unbanIP,
+    enableUfw,
+    disableUfw,
+    addUfwRule,
+    deleteUfwRule,
+    setModSecurityMode,
+    // SSL Management
+    showSslRequestModal,
+    closeSslModal,
+    closeSslDetailModal,
+    showCertDetail,
+    renewCert,
+    renewAllCerts,
+    deleteCert,
   };
 
   // Start

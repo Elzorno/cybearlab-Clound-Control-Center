@@ -111,6 +111,8 @@ body {
   border-radius: var(--radius);
   margin-bottom: 20px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 50;
 }
 
 .topbar-brand h1 {
@@ -139,6 +141,75 @@ body {
 }
 
 .nav-link.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* Navigation Dropdowns */
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.nav-dropdown-trigger .caret {
+  font-size: 0.7em;
+  opacity: 0.6;
+  transition: transform 0.15s;
+}
+
+.nav-dropdown:hover .nav-dropdown-trigger .caret {
+  transform: rotate(180deg);
+}
+
+.nav-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 160px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  padding: 6px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(8px);
+  transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+  z-index: 100;
+}
+
+.nav-dropdown:hover .nav-dropdown-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(4px);
+}
+
+.nav-dropdown-menu .nav-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+.nav-dropdown-menu .nav-link:hover {
+  background: rgba(0, 122, 255, 0.08);
+  color: var(--primary);
+}
+
+.nav-dropdown-menu .nav-link.active {
   background: var(--primary);
   color: #fff;
 }
@@ -1856,4 +1927,444 @@ details[open] summary {
   margin-top: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--line);
+}
+
+/* ============================================================
+   File Manager
+   ============================================================ */
+.files-browser {
+  padding: 0;
+  overflow: hidden;
+}
+
+.files-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.5);
+  flex-wrap: wrap;
+}
+
+.files-toolbar-left,
+.files-toolbar-right {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.breadcrumb {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breadcrumb-item {
+  cursor: pointer;
+  color: var(--primary);
+  transition: color 0.15s;
+}
+
+.breadcrumb-item:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.files-path {
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.03);
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.files-list {
+  min-height: 300px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.files-list .muted {
+  padding: 2rem;
+  text-align: center;
+}
+
+.file-item {
+  display: grid;
+  grid-template-columns: 40px 1fr 80px 140px 90px auto;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  transition: background 0.15s;
+  cursor: pointer;
+}
+
+.file-item:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.file-item:last-child {
+  border-bottom: none;
+}
+
+.file-item.directory {
+  font-weight: 500;
+}
+
+.file-item-icon {
+  font-size: 1.3rem;
+  text-align: center;
+}
+
+.file-item-name {
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-item-size {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+.file-item-modified {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.file-item-perms {
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.03);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.file-item-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.file-item:hover .file-item-actions {
+  opacity: 1;
+}
+
+.files-statusbar {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.02);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* File Editor Modal */
+.file-editor-modal {
+  width: 90vw;
+  max-width: 1000px;
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-editor-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.file-editor-textarea {
+  flex: 1;
+  width: 100%;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 16px;
+  border: none;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  resize: none;
+  outline: none;
+  tab-size: 2;
+}
+
+.file-editor-modal .modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+}
+
+.file-editor-modal .modal-footer-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Props Modal */
+.props-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.prop-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.prop-row:last-child {
+  border-bottom: none;
+}
+
+.prop-label {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.prop-value {
+  text-align: right;
+  word-break: break-all;
+}
+
+/* Chmod Modal */
+.chmod-presets {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* Files New Modal */
+#filesNewModal .modal-content,
+#filesRenameModal .modal-content,
+#filesChmodModal .modal-content {
+  max-width: 400px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .file-item {
+    grid-template-columns: 36px 1fr auto;
+  }
+  
+  .file-item-size,
+  .file-item-modified,
+  .file-item-perms {
+    display: none;
+  }
+  
+  .files-toolbar {
+    flex-wrap: wrap;
+  }
+  
+  .files-toolbar-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 600px) {
+  .file-item-actions {
+    position: absolute;
+    right: 16px;
+    background: var(--glass);
+    padding: 4px 8px;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+  }
+}
+
+/* ============================================================
+   Database & FTP Management Styles
+   ============================================================ */
+
+/* Input Group with Prefix */
+.input-group {
+  display: flex;
+  align-items: stretch;
+}
+
+.input-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.input-group .input {
+  border-radius: 0 8px 8px 0;
+  flex: 1;
+}
+
+/* Alert Styles */
+.alert {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.alert-success {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--ok);
+}
+
+.alert-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--error);
+}
+
+.alert-warn {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--warn);
+}
+
+/* Wide Modal */
+.modal-wide {
+  max-width: 800px;
+  width: 90%;
+}
+
+/* ============================================================
+   Cron View Styles
+   ============================================================ */
+.common-schedules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.schedule-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.schedule-item code {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.85rem;
+  color: var(--primary);
+}
+
+.schedule-item span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* ============================================================
+   Security View Styles
+   ============================================================ */
+.ssh-keys-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ssh-key-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.ssh-key-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.jail-list {
+  margin-bottom: 8px;
+}
+
+.jail-list .pill {
+  margin-right: 4px;
+  margin-bottom: 4px;
+}
+
+/* ============================================================
+   SSL View Styles
+   ============================================================ */
+.warnings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.warning-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(164, 92, 22, 0.1);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(164, 92, 22, 0.3);
+}
+
+.cert-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cert-detail .detail-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.cert-detail .detail-row strong {
+  min-width: 120px;
+  color: var(--muted);
+}
+
+.cert-detail code {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
 }
