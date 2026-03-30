@@ -1344,34 +1344,34 @@
       const websiteIcon = u.public_html_exists ? "✓" : "—";
       const websiteClass = u.public_html_exists ? "ok" : "muted";
 
-      return \`
-        <tr data-username="\${escapeHtml(u.username)}">
-          <td><input type="checkbox" class="user-checkbox" data-username="\${escapeHtml(u.username)}"></td>
+      return `
+        <tr data-username="${escapeHtml(u.username)}">
+          <td><input type="checkbox" class="user-checkbox" data-username="${escapeHtml(u.username)}"></td>
           <td>
-            <a href="#" class="user-link" onclick="event.preventDefault(); app.showUserDetail('\${escapeHtml(u.username)}')">\${escapeHtml(u.username)}</a>
+            <a href="#" class="user-link" onclick="event.preventDefault(); app.showUserDetail('${escapeHtml(u.username)}')">${escapeHtml(u.username)}</a>
           </td>
-          <td><span class="badge">\${escapeHtml(u.term)}</span></td>
-          <td><span class="status-badge \${statusClass}">\${statusText}</span></td>
+          <td><span class="badge">${escapeHtml(u.term)}</span></td>
+          <td><span class="status-badge ${statusClass}">${statusText}</span></td>
           <td>
             <div class="disk-bar">
               <div class="disk-bar-track">
-                <div class="disk-bar-fill \${diskClass}" style="width: \${diskPct}%"></div>
+                <div class="disk-bar-fill ${diskClass}" style="width: ${diskPct}%"></div>
               </div>
-              <span class="disk-bar-text">\${u.disk_used_formatted}</span>
+              <span class="disk-bar-text">${u.disk_used_formatted}</span>
             </div>
           </td>
-          <td>\${u.file_count}</td>
-          <td><span class="\${websiteClass}">\${websiteIcon}</span></td>
+          <td>${u.file_count}</td>
+          <td><span class="${websiteClass}">${websiteIcon}</span></td>
           <td>
             <div class="action-btns">
-              \${u.is_suspended
-                ? \`<button class="btn btn-xs" onclick="app.unsuspendUser('\${escapeHtml(u.username)}')">Unsuspend</button>\`
-                : \`<button class="btn btn-xs btn-danger" onclick="app.suspendUser('\${escapeHtml(u.username)}')">Suspend</button>\`
+              ${u.is_suspended
+                ? `<button class="btn btn-xs" onclick="app.unsuspendUser('${escapeHtml(u.username)}')">Unsuspend</button>`
+                : `<button class="btn btn-xs btn-danger" onclick="app.suspendUser('${escapeHtml(u.username)}')">Suspend</button>`
               }
             </div>
           </td>
         </tr>
-      \`;
+      `;
     }).join("");
 
     // Reset selection
@@ -1450,67 +1450,67 @@
       const diskClass = diskPct > 80 ? "high" : diskPct > 50 ? "mid" : "low";
 
       $("#userDetailTitle").textContent = data.username;
-      $("#userDetailBody").innerHTML = \`
+      $("#userDetailBody").innerHTML = `
         <div class="user-detail-grid">
           <div class="user-detail-item">
             <span class="label">Term</span>
-            <span class="value">\${escapeHtml(data.term)}</span>
+            <span class="value">${escapeHtml(data.term)}</span>
           </div>
           <div class="user-detail-item">
             <span class="label">Status</span>
             <span class="value">
-              <span class="status-badge \${data.is_suspended ? 'warn' : 'ok'}">\${data.is_suspended ? 'Suspended' : 'Active'}</span>
+              <span class="status-badge ${data.is_suspended ? 'warn' : 'ok'}">${data.is_suspended ? 'Suspended' : 'Active'}</span>
             </span>
           </div>
           <div class="user-detail-item">
             <span class="label">UID / GID</span>
-            <span class="value">\${data.uid} / \${data.gid}</span>
+            <span class="value">${data.uid} / ${data.gid}</span>
           </div>
           <div class="user-detail-item">
             <span class="label">Shell</span>
-            <span class="value">\${escapeHtml(data.shell)}</span>
+            <span class="value">${escapeHtml(data.shell)}</span>
           </div>
           <div class="user-detail-item full-width">
             <span class="label">Home Directory</span>
-            <span class="value">\${escapeHtml(data.home_dir)}</span>
+            <span class="value">${escapeHtml(data.home_dir)}</span>
           </div>
           <div class="user-detail-item">
             <span class="label">Disk Usage</span>
             <span class="value">
               <div class="disk-bar">
                 <div class="disk-bar-track">
-                  <div class="disk-bar-fill \${diskClass}" style="width: \${diskPct}%"></div>
+                  <div class="disk-bar-fill ${diskClass}" style="width: ${diskPct}%"></div>
                 </div>
-                <span class="disk-bar-text">\${data.disk_used_formatted}\${data.disk_quota_formatted ? ' / ' + data.disk_quota_formatted : ''}</span>
+                <span class="disk-bar-text">${data.disk_used_formatted}${data.disk_quota_formatted ? ' / ' + data.disk_quota_formatted : ''}</span>
               </div>
             </span>
           </div>
           <div class="user-detail-item">
             <span class="label">Total Files</span>
-            <span class="value">\${data.file_count}</span>
+            <span class="value">${data.file_count}</span>
           </div>
           <div class="user-detail-item">
             <span class="label">Website Files</span>
-            <span class="value">\${data.public_html_files} \${data.index_exists ? '(has index.html)' : ''}</span>
+            <span class="value">${data.public_html_files} ${data.index_exists ? '(has index.html)' : ''}</span>
           </div>
           <div class="user-detail-item">
             <span class="label">Last Login</span>
-            <span class="value">\${data.last_login || 'Never'}</span>
+            <span class="value">${data.last_login || 'Never'}</span>
           </div>
           <div class="user-detail-item full-width">
             <span class="label">Groups</span>
-            <span class="value">\${data.groups?.join(', ') || 'None'}</span>
+            <span class="value">${data.groups?.join(', ') || 'None'}</span>
           </div>
         </div>
         <div class="user-actions-row">
-          \${data.is_suspended
-            ? \`<button class="btn" onclick="app.unsuspendUser('\${escapeHtml(data.username)}'); app.closeUserModal();">Unsuspend</button>\`
-            : \`<button class="btn btn-danger" onclick="app.suspendUser('\${escapeHtml(data.username)}'); app.closeUserModal();">Suspend</button>\`
+          ${data.is_suspended
+            ? `<button class="btn" onclick="app.unsuspendUser('${escapeHtml(data.username)}'); app.closeUserModal();">Unsuspend</button>`
+            : `<button class="btn btn-danger" onclick="app.suspendUser('${escapeHtml(data.username)}'); app.closeUserModal();">Suspend</button>`
           }
-          <button class="btn" onclick="app.setUserQuota('\${escapeHtml(data.username)}')">Set Quota</button>
-          <button class="btn btn-danger" onclick="app.deleteUser('\${escapeHtml(data.username)}')">Delete</button>
+          <button class="btn" onclick="app.setUserQuota('${escapeHtml(data.username)}')">Set Quota</button>
+          <button class="btn btn-danger" onclick="app.deleteUser('${escapeHtml(data.username)}')">Delete</button>
         </div>
-      \`;
+      `;
 
       $("#userDetailModal").classList.remove("hidden");
     } catch (err) {
@@ -1523,10 +1523,10 @@
   }
 
   async function suspendUser(username) {
-    if (!confirm(\`Suspend user \${username}?\`)) return;
+    if (!confirm(`Suspend user ${username}?`)) return;
 
     try {
-      const { res, data } = await api(\`/users/\${encodeURIComponent(username)}/suspend\`, {
+      const { res, data } = await api(`/users/${encodeURIComponent(username)}/suspend`, {
         method: "POST",
       });
 
@@ -1534,18 +1534,18 @@
         alert(data.message);
         loadUsers();
       } else {
-        alert(\`Failed: \${data.detail || "Unknown error"}\`);
+        alert(`Failed: ${data.detail || "Unknown error"}`);
       }
     } catch (err) {
-      alert(\`Error: \${err.message}\`);
+      alert(`Error: ${err.message}`);
     }
   }
 
   async function unsuspendUser(username) {
-    if (!confirm(\`Unsuspend user \${username}?\`)) return;
+    if (!confirm(`Unsuspend user ${username}?`)) return;
 
     try {
-      const { res, data } = await api(\`/users/\${encodeURIComponent(username)}/unsuspend\`, {
+      const { res, data } = await api(`/users/${encodeURIComponent(username)}/unsuspend`, {
         method: "POST",
       });
 
@@ -1553,15 +1553,15 @@
         alert(data.message);
         loadUsers();
       } else {
-        alert(\`Failed: \${data.detail || "Unknown error"}\`);
+        alert(`Failed: ${data.detail || "Unknown error"}`);
       }
     } catch (err) {
-      alert(\`Error: \${err.message}\`);
+      alert(`Error: ${err.message}`);
     }
   }
 
   async function setUserQuota(username) {
-    const quotaMb = prompt(\`Set quota for \${username} (in MB):\`, "500");
+    const quotaMb = prompt(`Set quota for ${username} (in MB):`, "500");
     if (!quotaMb) return;
 
     const quota = parseInt(quotaMb, 10);
@@ -1571,7 +1571,7 @@
     }
 
     try {
-      const { res, data } = await api(\`/users/\${encodeURIComponent(username)}/quota\`, {
+      const { res, data } = await api(`/users/${encodeURIComponent(username)}/quota`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quota_mb: quota }),
@@ -1581,20 +1581,20 @@
         alert(data.message);
         loadUsers();
       } else {
-        alert(\`Failed: \${data.detail || "Unknown error"}\`);
+        alert(`Failed: ${data.detail || "Unknown error"}`);
       }
     } catch (err) {
-      alert(\`Error: \${err.message}\`);
+      alert(`Error: ${err.message}`);
     }
   }
 
   async function deleteUser(username) {
-    if (!confirm(\`Are you sure you want to DELETE user \${username}? This cannot be undone.\`)) return;
+    if (!confirm(`Are you sure you want to DELETE user ${username}? This cannot be undone.`)) return;
     
     const removeHome = confirm("Also remove home directory and all files?");
 
     try {
-      const { res, data } = await api(\`/users/\${encodeURIComponent(username)}?remove_home=\${removeHome}\`, {
+      const { res, data } = await api(`/users/${encodeURIComponent(username)}?remove_home=${removeHome}`, {
         method: "DELETE",
       });
 
@@ -1603,22 +1603,22 @@
         closeUserModal();
         loadUsers();
       } else {
-        alert(\`Failed: \${data.detail || "Unknown error"}\`);
+        alert(`Failed: ${data.detail || "Unknown error"}`);
       }
     } catch (err) {
-      alert(\`Error: \${err.message}\`);
+      alert(`Error: ${err.message}`);
     }
   }
 
   async function bulkSuspendUsers() {
     if (selectedUsers.size === 0) return;
-    if (!confirm(\`Suspend \${selectedUsers.size} user(s)?\`)) return;
+    if (!confirm(`Suspend ${selectedUsers.size} user(s)?`)) return;
 
     for (const username of selectedUsers) {
       try {
-        await api(\`/users/\${encodeURIComponent(username)}/suspend\`, { method: "POST" });
+        await api(`/users/${encodeURIComponent(username)}/suspend`, { method: "POST" });
       } catch (err) {
-        console.error(\`Failed to suspend \${username}:\`, err);
+        console.error(`Failed to suspend ${username}:`, err);
       }
     }
 
@@ -1629,13 +1629,13 @@
 
   async function bulkUnsuspendUsers() {
     if (selectedUsers.size === 0) return;
-    if (!confirm(\`Unsuspend \${selectedUsers.size} user(s)?\`)) return;
+    if (!confirm(`Unsuspend ${selectedUsers.size} user(s)?`)) return;
 
     for (const username of selectedUsers) {
       try {
-        await api(\`/users/\${encodeURIComponent(username)}/unsuspend\`, { method: "POST" });
+        await api(`/users/${encodeURIComponent(username)}/unsuspend`, { method: "POST" });
       } catch (err) {
-        console.error(\`Failed to unsuspend \${username}:\`, err);
+        console.error(`Failed to unsuspend ${username}:`, err);
       }
     }
 
