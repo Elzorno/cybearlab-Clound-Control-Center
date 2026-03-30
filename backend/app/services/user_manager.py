@@ -13,6 +13,12 @@ from typing import Optional
 from ..config import settings
 
 
+# Configurable paths - adjust based on your server setup
+STUDENT_GROUP = "iscs1800-students"
+WEB_ROOT = Path("/srv/students")
+DEFAULT_TERM = "2026SP"
+
+
 @dataclass
 class UserInfo:
     username: str
@@ -137,96 +143,105 @@ def _get_last_login(username: str) -> Optional[str]:
 
 
 def get_terms() -> list[str]:
-    """List available terms (directories in /home)."""
+    """List available terms from /srv/students directories."""
     terms = []
-    home_base = Path("/home")
     
-    if not home_base.exists():
-        return terms
+    if not WEB_ROOT.exists():
+        return [DEFAULT_TERM]
         
     try:
-        for entry in home_base.iterdir():
+        for entry in WEB_ROOT.iterdir():
             if entry.is_dir():
                 name = entry.name
-                # Filter to term-like directories (e.g., 2025-fall, spring2026)
-                # Also include standard year patterns
-                if any(c.isdigit() for c in name) or name.lower() in ['students', 'users']:
+                # Term directories typically have year patterns like 2026SP, 2025FA
+                if any(c.isdigit() for c in name):
                     terms.append(name)
     except PermissionError:
         pass
-        
-    return sorted(terms)
+    
+    return sorted(terms) if terms else [DEFAULT_TERM]
+
+
+def _get_student_group_gid() -> Optional[int]:
+    """Get the GID of the student group."""
+    try:
+        return grp.getgrnam(STUDENT_GROUP).gr_gid
+    except KeyError:
+        return None
 
 
 def list_users(term: Optional[str] = None) -> list[UserInfo]:
-    """List all users, optionally filtered by term."""
+    """List all student users from /home, with web content from /srv/students/TERM."""
     users = []
     home_base = Path("/home")
+    student_gid = _get_student_group_gid()
+    
+    # Use specified term or default
+    active_term = term or DEFAULT_TERM
+    web_term_path = WEB_ROOT / active_term
     
     if not home_base.exists():
         return users
     
-    # Determine which term directories to scan
-    if term:
-        term_dirs = [home_base / term] if (home_base / term).exists() else []
-    else:
-        term_dirs = [d for d in home_base.iterdir() if d.is_dir()]
-    
-    for term_dir in term_dirs:
-        term_name = term_dir.name
-        
-        # Skip system directories
-        if term_name in ['lost+found']:
-            continue
+    try:
+        for user_dir in home_base.iterdir():
+            if not user_dir.is_dir():
+                continue
+                
+            username = user_dir.name
             
-        try:
-            for user_dir in term_dir.iterdir():
-                if not user_dir.is_dir():
-                    continue
-                    
-                username = user_dir.name
-                home_path = str(user_dir)
-                
-                # Get user info from passwd
+            # Skip system/non-student directories
+            if username in ['lost+found', 'ubuntu', 'root']:
+                continue
+            
+            # Get user info from passwd
+            try:
+                pw = pwd.getpwnam(username)
+            except KeyError:
+                continue
+            
+            # Filter by student group if we can identify it
+            if student_gid is not None:
                 try:
-                    pw = pwd.getpwnam(username)
-                except KeyError:
-                    # User doesn't exist in passwd - skip or create minimal entry
-                    continue
-                
-                # Get disk usage
-                disk_used, file_count = _get_dir_size(home_path)
-                disk_quota = _get_quota(username)
-                
-                # Calculate percent
-                if disk_quota and disk_quota > 0:
-                    disk_percent = min(100, (disk_used / disk_quota) * 100)
-                else:
-                    disk_percent = 0
-                
-                # Check public_html
-                public_html = user_dir / "public_html"
-                public_html_exists = public_html.exists() and public_html.is_dir()
-                
-                users.append(UserInfo(
-                    username=username,
-                    term=term_name,
-                    uid=pw.pw_uid,
-                    gid=pw.pw_gid,
-                    home_dir=home_path,
-                    shell=pw.pw_shell,
-                    disk_used_bytes=disk_used,
-                    disk_quota_bytes=disk_quota,
-                    disk_percent=disk_percent,
-                    is_suspended=_is_user_suspended(username, home_path),
-                    public_html_exists=public_html_exists,
-                    file_count=file_count,
-                ))
-                
-        except PermissionError:
-            continue
+                    user_groups = os.getgrouplist(username, pw.pw_gid)
+                    if student_gid not in user_groups and pw.pw_gid != student_gid:
+                        continue
+                except (KeyError, OSError):
+                    pass
+            
+            home_path = str(user_dir)
+            
+            # Get disk usage from home directory
+            disk_used, file_count = _get_dir_size(home_path)
+            disk_quota = _get_quota(username)
+            
+            if disk_quota and disk_quota > 0:
+                disk_percent = min(100, (disk_used / disk_quota) * 100)
+            else:
+                disk_percent = 0
+            
+            # Check public_html in web root (e.g., /srv/students/2026SP/username/public_html)
+            web_user_path = web_term_path / username / "public_html"
+            public_html_exists = web_user_path.exists() and web_user_path.is_dir()
+            
+            users.append(UserInfo(
+                username=username,
+                term=active_term,
+                uid=pw.pw_uid,
+                gid=pw.pw_gid,
+                home_dir=home_path,
+                shell=pw.pw_shell,
+                disk_used_bytes=disk_used,
+                disk_quota_bytes=disk_quota,
+                disk_percent=disk_percent,
+                is_suspended=_is_user_suspended(username, home_path),
+                public_html_exists=public_html_exists,
+                file_count=file_count,
+            ))
+    except PermissionError:
+        pass
     
-    return sorted(users, key=lambda u: (u.term, u.username))
+    return sorted(users, key=lambda u: u.username)
 
 
 def get_user_detail(username: str) -> Optional[UserDetail]:
@@ -238,9 +253,8 @@ def get_user_detail(username: str) -> Optional[UserDetail]:
     
     home_path = pw.pw_dir
     
-    # Determine term from home path
-    parts = Path(home_path).parts
-    term = parts[2] if len(parts) > 2 else "unknown"
+    # Use default term (or could be passed as parameter)
+    term = DEFAULT_TERM
     
     # Get disk usage
     disk_used, file_count = _get_dir_size(home_path)
@@ -263,16 +277,16 @@ def get_user_detail(username: str) -> Optional[UserDetail]:
     except (KeyError, OSError):
         pass
     
-    # Check public_html
-    public_html = Path(home_path) / "public_html"
-    public_html_exists = public_html.exists() and public_html.is_dir()
+    # Check public_html in web root (e.g., /srv/students/2026SP/username/public_html)
+    web_public_html = WEB_ROOT / term / username / "public_html"
+    public_html_exists = web_public_html.exists() and web_public_html.is_dir()
     
     # Count files in public_html
     public_html_files = 0
     index_exists = False
     if public_html_exists:
-        _, public_html_files = _get_dir_size(str(public_html))
-        index_exists = (public_html / "index.html").exists() or (public_html / "index.htm").exists()
+        _, public_html_files = _get_dir_size(str(web_public_html))
+        index_exists = (web_public_html / "index.html").exists() or (web_public_html / "index.htm").exists()
     
     return UserDetail(
         username=username,
