@@ -129,6 +129,7 @@
     "/users": "users",
     "/dns": "dns",
     "/reports": "reports",
+    "/audit": "audit",
     "/settings": "settings",
     "/system": "system",
   };
@@ -163,6 +164,8 @@
     if (route === "system") loadSystemView();
     if (route === "users") loadUsersView();
     if (route === "dns") loadDnsView();
+    if (route === "audit") loadAuditView();
+    if (route === "settings") loadSettingsView();
   }
 
   function handleRouteChange() {
@@ -294,7 +297,7 @@
   async function handleGrade() {
     const url = $("#gradeUrl").value.trim();
     if (!url) {
-      alert("Enter a URL to grade.");
+      showToast("Enter a URL to grade.", "warn");
       return;
     }
 
@@ -324,7 +327,7 @@
       });
 
       if (!create.res.ok) {
-        alert(`Failed to start grading: ${create.data?.detail || "Unknown error"}`);
+        showToast(`Failed to start grading: ${create.data?.detail || "Unknown error"}`, "error");
         return;
       }
 
@@ -483,7 +486,7 @@
     const out = $("#adminOutput");
 
     if (!username && currentAdminAction !== "fix_perms_all" && currentAdminAction !== "https_students_all") {
-      alert("Username is required for this action.");
+      showToast("Username is required for this action.", "warn");
       return;
     }
 
@@ -664,6 +667,32 @@
   }
 
   // ============================================================
+  // Toast Notification System
+  // ============================================================
+  function showToast(message, type = "info", duration = 4000) {
+    const container = $("#toastContainer");
+    if (!container) return;
+
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+
+    const icons = { success: "✓", error: "✗", warn: "⚠", info: "ⓘ" };
+    toast.innerHTML = `
+      <span class="toast-icon">${icons[type] || icons.info}</span>
+      <span class="toast-message">${escapeHtml(message)}</span>
+      <button class="toast-close" onclick="this.parentElement.remove()">&times;</button>
+    `;
+
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("toast-visible"));
+
+    setTimeout(() => {
+      toast.classList.remove("toast-visible");
+      toast.addEventListener("transitionend", () => toast.remove());
+    }, duration);
+  }
+
+  // ============================================================
   // Roster Import
   // ============================================================
   let rosterPreviewData = null;
@@ -707,7 +736,7 @@
 
   async function handleRosterFile(file) {
     if (!file.name.toLowerCase().endsWith(".csv")) {
-      alert("Please upload a CSV file.");
+      showToast("Please upload a CSV file.", "warn");
       return;
     }
 
@@ -729,12 +758,12 @@
       const data = await res.json();
 
       if (!res.ok) {
-        alert(`Error: ${data.detail || "Failed to parse roster"}`);
+        showToast(`${data.detail || "Failed to parse roster"}`, "error");
         return;
       }
 
       if (data.errors?.length) {
-        alert(`CSV Errors:\n${data.errors.join("\n")}`);
+        showToast(`CSV has ${data.errors.length} error(s)`, "error");
         return;
       }
 
@@ -744,7 +773,7 @@
       // Show preview
       renderRosterPreview(data);
     } catch (err) {
-      alert(`Upload failed: ${err.message}`);
+      showToast(`Upload failed: ${err.message}`, "error");
     } finally {
       $("#rosterUploadArea").classList.remove("loading");
     }
@@ -784,7 +813,7 @@
 
   async function handleRosterImport() {
     if (!rosterPreviewData || rosterPreviewData.valid_count === 0) {
-      alert("No valid entries to import.");
+      showToast("No valid entries to import.", "warn");
       return;
     }
 
@@ -821,7 +850,7 @@
       $("#rosterProgressFill").style.width = "100%";
 
       if (!res.ok) {
-        alert(`Import failed: ${data.detail || "Unknown error"}`);
+        showToast(`Import failed: ${data.detail || "Unknown error"}`, "error");
         resetRosterUI();
         return;
       }
@@ -829,7 +858,7 @@
       // Show results
       renderRosterResults(data);
     } catch (err) {
-      alert(`Import failed: ${err.message}`);
+      showToast(`Import failed: ${err.message}`, "error");
       resetRosterUI();
     }
   }
@@ -1037,13 +1066,13 @@
       });
 
       if (res.ok) {
-        alert(data.message);
+        showToast(data.message, "success");
         loadServices();
       } else {
-        alert(`Failed: ${data.detail || data.message || "Unknown error"}`);
+        showToast(`Failed: ${data.detail || data.message || "Unknown error"}`, "error");
       }
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      showToast(`Error: ${err.message}`, "error");
     }
   }
 
@@ -1205,11 +1234,11 @@
     const student = $("#backupStudent").value;
 
     if (backupType === "term" && !term) {
-      alert("Please select a term.");
+      showToast("Please select a term.", "warn");
       return;
     }
     if (backupType === "student" && (!term || !student)) {
-      alert("Please select a term and student.");
+      showToast("Please select a term and student.", "warn");
       return;
     }
 
@@ -1259,7 +1288,7 @@
       const fullUrl = url + (url.includes("?") ? "&" : "?") + `token=${token}`;
       window.open(fullUrl, "_blank");
     } catch (err) {
-      alert(`Download error: ${err.message}`);
+      showToast(`Download error: ${err.message}`, "error");
     }
   }
 
@@ -1272,13 +1301,13 @@
       });
 
       if (res.ok) {
-        alert("Backup deleted.");
+        showToast("Backup deleted.", "success");
         loadBackups();
       } else {
-        alert(`Failed: ${data.detail || data.message || "Unknown error"}`);
+        showToast(`Failed: ${data.detail || data.message || "Unknown error"}`, "error");
       }
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      showToast(`Error: ${err.message}`, "error");
     }
   }
 
@@ -1445,7 +1474,7 @@
     try {
       const { res, data } = await api(`/users/${encodeURIComponent(username)}`);
       if (!res.ok) {
-        alert("Failed to load user details");
+        showToast("Failed to load user details", "error");
         return;
       }
 
@@ -1517,7 +1546,7 @@
 
       $("#userDetailModal").classList.remove("hidden");
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      showToast(`Error: ${err.message}`, "error");
     }
   }
 
@@ -1534,13 +1563,13 @@
       });
 
       if (res.ok) {
-        alert(data.message);
+        showToast(data.message, "success");
         loadUsers();
       } else {
-        alert(`Failed: ${data.detail || "Unknown error"}`);
+        showToast(`Failed: ${data.detail || "Unknown error"}`, "error");
       }
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      showToast(`Error: ${err.message}`, "error");
     }
   }
 
@@ -1553,13 +1582,13 @@
       });
 
       if (res.ok) {
-        alert(data.message);
+        showToast(data.message, "success");
         loadUsers();
       } else {
-        alert(`Failed: ${data.detail || "Unknown error"}`);
+        showToast(`Failed: ${data.detail || "Unknown error"}`, "error");
       }
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      showToast(`Error: ${err.message}`, "error");
     }
   }
 
@@ -1569,7 +1598,7 @@
 
     const quota = parseInt(quotaMb, 10);
     if (isNaN(quota) || quota < 0) {
-      alert("Invalid quota value");
+      showToast("Invalid quota value", "warn");
       return;
     }
 
@@ -1581,13 +1610,13 @@
       });
 
       if (res.ok) {
-        alert(data.message);
+        showToast(data.message, "success");
         loadUsers();
       } else {
-        alert(`Failed: ${data.detail || "Unknown error"}`);
+        showToast(`Failed: ${data.detail || "Unknown error"}`, "error");
       }
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      showToast(`Error: ${err.message}`, "error");
     }
   }
 
@@ -1602,14 +1631,14 @@
       });
 
       if (res.ok) {
-        alert(data.message);
+        showToast(data.message, "success");
         closeUserModal();
         loadUsers();
       } else {
-        alert(`Failed: ${data.detail || "Unknown error"}`);
+        showToast(`Failed: ${data.detail || "Unknown error"}`, "error");
       }
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      showToast(`Error: ${err.message}`, "error");
     }
   }
 
@@ -1625,7 +1654,7 @@
       }
     }
 
-    alert("Bulk suspend complete");
+    showToast("Bulk suspend complete", "success");
     selectedUsers.clear();
     loadUsers();
   }
@@ -1642,7 +1671,7 @@
       }
     }
 
-    alert("Bulk unsuspend complete");
+    showToast("Bulk unsuspend complete", "success");
     selectedUsers.clear();
     loadUsers();
   }
@@ -1671,7 +1700,7 @@
     $("#logStreamBtn")?.addEventListener("click", () => {
       const logKey = $("#logSelect").value;
       if (!logKey) {
-        alert("Select a log file first.");
+        showToast("Select a log file first.", "warn");
         return;
       }
       if (logWebSocket) {
@@ -1763,6 +1792,161 @@
     $("#apiBase")?.addEventListener("change", (e) => {
       currentApiBase = normalizedBase(e.target.value);
     });
+
+    // Audit filters
+    $("#auditFilterBtn")?.addEventListener("click", () => loadAuditEvents());
+    $("#auditClearBtn")?.addEventListener("click", () => {
+      $("#auditFilterAction").value = "";
+      $("#auditFilterActor").value = "";
+      loadAuditEvents();
+    });
+
+    // Settings - save grader config
+    $("#settingsSaveGraderBtn")?.addEventListener("click", saveGraderSettings);
+  }
+
+  // ============================================================
+  // Audit Log View
+  // ============================================================
+  function loadAuditView() {
+    loadAuditEvents();
+  }
+
+  async function loadAuditEvents() {
+    const timeline = $("#auditTimeline");
+    timeline.innerHTML = '<p class="muted">Loading audit events...</p>';
+
+    const actionType = $("#auditFilterAction")?.value || "";
+    const actor = $("#auditFilterActor")?.value?.trim() || "";
+
+    let path = "/audit/events?";
+    if (actionType) path += `actionType=${encodeURIComponent(actionType)}&`;
+    if (actor) path += `actor=${encodeURIComponent(actor)}&`;
+
+    try {
+      const { res, data } = await api(path);
+      if (!res.ok) {
+        timeline.innerHTML = '<p class="muted">Failed to load audit events.</p>';
+        return;
+      }
+
+      const items = data.items || [];
+      if (!items.length) {
+        timeline.innerHTML = '<p class="muted">No audit events found.</p>';
+        return;
+      }
+
+      timeline.innerHTML = items.map((evt) => {
+        const date = new Date(evt.created_at);
+        const timeStr = date.toLocaleString();
+        const statusClass = evt.status === "success" || evt.status === "completed"
+          ? "ok" : evt.status === "failed" ? "low" : "neutral";
+        const actionLabel = formatActionType(evt.action_type);
+        const icon = getAuditIcon(evt.action_type);
+
+        return `
+          <div class="audit-event">
+            <div class="audit-event-icon">${icon}</div>
+            <div class="audit-event-body">
+              <div class="audit-event-header">
+                <strong>${escapeHtml(actionLabel)}</strong>
+                <span class="pill ${statusClass}" style="font-size:0.72rem;padding:3px 8px">${escapeHtml(evt.status)}</span>
+              </div>
+              <p class="audit-event-meta">
+                <span class="audit-actor">${escapeHtml(evt.actor)}</span>
+                ${evt.entity_id ? `<span class="muted">\u2192 ${escapeHtml(evt.entity_id)}</span>` : ""}
+              </p>
+              <span class="audit-event-time">${timeStr}</span>
+            </div>
+          </div>
+        `;
+      }).join("");
+    } catch (err) {
+      console.error("Failed to load audit events:", err);
+      timeline.innerHTML = '<p class="muted">Failed to load audit events.</p>';
+    }
+  }
+
+  function formatActionType(type) {
+    return (type || "unknown").replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function getAuditIcon(type) {
+    const icons = {
+      "admin.action.create": "\ud83d\udee0\ufe0f",
+      "admin.action.read": "\ud83d\udee0\ufe0f",
+      "admin.upload.roster": "\ud83d\udccb",
+      "grader.run.create": "\ud83d\udcca",
+      "grader.run.list": "\ud83d\udcca",
+      "grader.run.read": "\ud83d\udcca",
+      "auth.login": "\ud83d\udd11",
+      "system.backup.create": "\ud83d\udce6",
+      "system.backup.delete": "\ud83d\udce6",
+      "user.suspend": "\u26d4",
+      "user.unsuspend": "\u2705",
+      "user.delete": "\ud83d\uddd1\ufe0f",
+      "user.quota": "\ud83d\udccf",
+      "dns.record.create": "\ud83c\udf10",
+      "dns.record.delete": "\ud83c\udf10",
+      "service.action": "\u2699\ufe0f",
+    };
+    return icons[type] || "\ud83d\udcdd";
+  }
+
+  // ============================================================
+  // Settings View
+  // ============================================================
+  function loadSettingsView() {
+    // Show current API endpoint
+    const endpointEl = $("#settingsEndpoint");
+    if (endpointEl) endpointEl.textContent = currentApiBase || "auto-detected";
+
+    const versionEl = $("#settingsVersion");
+    if (versionEl) versionEl.textContent = "1.0.0";
+
+    // Load saved grader settings from localStorage
+    const saved = JSON.parse(localStorage.getItem("graderSettings") || "{}");
+    if (saved.maxPages) $("#settingsMaxPages").value = saved.maxPages;
+    if (saved.timeout) $("#settingsTimeout").value = saved.timeout;
+    if (saved.concurrency) $("#settingsConcurrency").value = saved.concurrency;
+
+    // Check connection status
+    checkSettingsStatus();
+  }
+
+  async function checkSettingsStatus() {
+    const apiPill = $("#settingsApiStatus");
+    const dbPill = $("#settingsDbStatus");
+
+    try {
+      const { res, data } = await api("/health");
+      if (res.ok) {
+        apiPill.textContent = "Connected";
+        apiPill.className = "pill ok";
+        dbPill.textContent = data.database === "ok" ? "Connected" : "Issue";
+        dbPill.className = `pill ${data.database === "ok" ? "ok" : "warn"}`;
+      } else {
+        apiPill.textContent = "Unreachable";
+        apiPill.className = "pill warn";
+        dbPill.textContent = "Unknown";
+        dbPill.className = "pill neutral";
+      }
+    } catch {
+      apiPill.textContent = "Unreachable";
+      apiPill.className = "pill warn";
+      dbPill.textContent = "Unknown";
+      dbPill.className = "pill neutral";
+    }
+  }
+
+  function saveGraderSettings() {
+    const settings = {
+      maxPages: parseInt($("#settingsMaxPages").value) || 30,
+      timeout: parseInt($("#settingsTimeout").value) || 15,
+      concurrency: parseInt($("#settingsConcurrency").value) || 3,
+    };
+    localStorage.setItem("graderSettings", JSON.stringify(settings));
+    showToast("Grader settings saved", "success");
   }
 
   // ============================================================
@@ -1889,12 +2073,12 @@
   }
 
   function showAddRecordModal() {
-    $("#dnsRecordModal")?.classList.add("active");
+    $("#dnsRecordModal")?.classList.remove("hidden");
     $("#dnsRecordForm")?.reset();
   }
 
   function closeDnsModal() {
-    $("#dnsRecordModal")?.classList.remove("active");
+    $("#dnsRecordModal")?.classList.add("hidden");
   }
 
   async function handleAddDnsRecord(e) {
@@ -1908,7 +2092,7 @@
     };
 
     if (!data.name || !data.content) {
-      alert("Name and content are required");
+      showToast("Name and content are required", "warn");
       return;
     }
 
@@ -1921,12 +2105,13 @@
       if (res.ok) {
         closeDnsModal();
         await loadDnsRecords();
+        showToast("DNS record created", "success");
       } else {
-        alert("Failed to create DNS record");
+        showToast("Failed to create DNS record", "error");
       }
     } catch (err) {
       console.error("Error creating DNS record:", err);
-      alert("Failed to create DNS record");
+      showToast("Failed to create DNS record", "error");
     }
   }
 
@@ -1937,12 +2122,13 @@
       const { res } = await api(`/dns/records/${recordId}`, { method: "DELETE" });
       if (res.ok) {
         await loadDnsRecords();
+        showToast("DNS record deleted", "success");
       } else {
-        alert("Failed to delete record");
+        showToast("Failed to delete record", "error");
       }
     } catch (err) {
       console.error("Error deleting DNS record:", err);
-      alert("Failed to delete record");
+      showToast("Failed to delete record", "error");
     }
   }
 
@@ -1971,6 +2157,7 @@
     bulkUnsuspendUsers,
     deleteDnsRecord,
     closeDnsModal,
+    showToast,
   };
 
   // Start

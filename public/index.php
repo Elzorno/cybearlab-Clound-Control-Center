@@ -47,6 +47,7 @@ declare(strict_types=1);
         <a href="#/dns" class="nav-link" data-route="dns">DNS</a>
         <a href="#/system" class="nav-link" data-route="system">System</a>
         <a href="#/reports" class="nav-link" data-route="reports">Reports</a>
+        <a href="#/audit" class="nav-link" data-route="audit">Audit</a>
         <a href="#/settings" class="nav-link" data-route="settings">Settings</a>
       </nav>
       <div class="topbar-actions">
@@ -624,7 +625,7 @@ declare(strict_types=1);
       </article>
 
       <!-- Add DNS Record Modal -->
-      <div id="dnsRecordModal" class="modal">
+      <div id="dnsRecordModal" class="modal hidden">
         <div class="modal-backdrop" onclick="app.closeDnsModal && app.closeDnsModal()"></div>
         <div class="modal-content card">
           <div class="modal-header">
@@ -662,12 +663,47 @@ declare(strict_types=1);
               </select>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn" onclick="document.getElementById('dnsRecordModal').classList.remove('active')">Cancel</button>
+              <button type="button" class="btn" onclick="document.getElementById('dnsRecordModal').classList.add('hidden')">Cancel</button>
               <button type="submit" class="btn btn-primary">Create Record</button>
             </div>
           </form>
         </div>
       </div>
+    </section>
+
+    <!-- View: Audit Log -->
+    <section id="view-audit" class="view hidden">
+      <div class="view-header">
+        <h2>Audit Log</h2>
+        <p class="muted">Track all privileged operations and system events</p>
+      </div>
+      <article class="card glass">
+        <div class="audit-filters">
+          <label>Action Type
+            <select id="auditFilterAction" class="input">
+              <option value="">All Actions</option>
+              <option value="auth.login">Login</option>
+              <option value="admin.action.create">Admin Action</option>
+              <option value="admin.action.read">Admin Action Read</option>
+              <option value="admin.upload.roster">Roster Upload</option>
+              <option value="grader.run.create">Grade Run</option>
+              <option value="grader.run.list">Grade Run List</option>
+              <option value="grader.run.read">Grade Run Read</option>
+              <option value="system.backup.create">Backup Create</option>
+            </select>
+          </label>
+          <label>Actor
+            <input id="auditFilterActor" class="input" placeholder="username" />
+          </label>
+          <button id="auditFilterBtn" class="btn">Apply</button>
+          <button id="auditClearBtn" class="btn btn-ghost">Clear</button>
+        </div>
+      </article>
+      <article class="card glass">
+        <div id="auditTimeline" class="audit-timeline">
+          <p class="muted">Loading audit events...</p>
+        </div>
+      </article>
     </section>
 
     <!-- View: Reports -->
@@ -730,18 +766,76 @@ declare(strict_types=1);
     <section id="view-settings" class="view hidden">
       <div class="view-header">
         <h2>Settings</h2>
-        <p class="muted">API configuration and preferences</p>
+        <p class="muted">Configuration and preferences</p>
       </div>
+
+      <div class="grid-2">
+        <!-- API Configuration -->
+        <article class="card glass">
+          <h3>API Configuration</h3>
+          <label>API Base URL
+            <input id="apiBase" class="input mono" placeholder="auto-detected" />
+          </label>
+          <p class="muted small">Leave empty for auto-detection. Changes apply immediately.</p>
+        </article>
+
+        <!-- Connection Status -->
+        <article class="card glass">
+          <h3>Connection Status</h3>
+          <div class="settings-status-grid">
+            <div class="settings-status-row">
+              <span>Backend API</span>
+              <span id="settingsApiStatus" class="pill neutral">Checking...</span>
+            </div>
+            <div class="settings-status-row">
+              <span>Database</span>
+              <span id="settingsDbStatus" class="pill neutral">Checking...</span>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <!-- Grader Configuration -->
       <article class="card glass">
-        <h3>API Configuration</h3>
-        <label>API Base URL
-          <input id="apiBase" class="input mono" placeholder="auto-detected" />
-        </label>
-        <p class="muted small">Leave empty for auto-detection. Changes apply immediately.</p>
+        <h3>Grader Configuration</h3>
+        <div class="grid-3">
+          <label>Max Pages per Crawl
+            <input id="settingsMaxPages" class="input" type="number" value="30" min="1" max="100" />
+          </label>
+          <label>Request Timeout (seconds)
+            <input id="settingsTimeout" class="input" type="number" value="15" min="5" max="60" />
+          </label>
+          <label>Validator Concurrency
+            <input id="settingsConcurrency" class="input" type="number" value="3" min="1" max="10" />
+          </label>
+        </div>
+        <p class="muted small">These settings affect all future grading runs. Changes are saved to your browser.</p>
+        <button id="settingsSaveGraderBtn" class="btn primary" style="margin-top:12px">Save Grader Settings</button>
+      </article>
+
+      <!-- About -->
+      <article class="card glass">
+        <h3>About</h3>
+        <div class="settings-about">
+          <p><strong>CybearLab.cloud Control Center</strong></p>
+          <p class="muted">Student hosting administration and auto-grading platform.</p>
+          <div class="settings-status-grid" style="margin-top:12px">
+            <div class="settings-status-row">
+              <span>Version</span>
+              <span class="mono" id="settingsVersion">—</span>
+            </div>
+            <div class="settings-status-row">
+              <span>API Endpoint</span>
+              <span class="mono" id="settingsEndpoint">—</span>
+            </div>
+          </div>
+        </div>
       </article>
     </section>
 
   </main>
+
+  <div id="toastContainer" class="toast-container"></div>
 
   <script src="./app.js" defer></script>
 </body>

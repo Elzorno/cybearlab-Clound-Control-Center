@@ -1519,6 +1519,196 @@ details[open] summary {
 }
 
 /* ============================================================
+   Toast Notification System
+   ============================================================ */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  border: 1px solid var(--line);
+  font-size: 0.88rem;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateX(40px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  max-width: 400px;
+}
+
+.toast.toast-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.toast-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.toast-message {
+  flex: 1;
+  line-height: 1.3;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 0 0 8px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.toast-close:hover {
+  color: var(--ink);
+}
+
+.toast-success {
+  border-left: 4px solid var(--ok);
+}
+
+.toast-success .toast-icon {
+  color: var(--ok);
+}
+
+.toast-error {
+  border-left: 4px solid var(--low);
+}
+
+.toast-error .toast-icon {
+  color: var(--low);
+}
+
+.toast-warn {
+  border-left: 4px solid var(--warn);
+}
+
+.toast-warn .toast-icon {
+  color: var(--warn);
+}
+
+.toast-info {
+  border-left: 4px solid var(--primary);
+}
+
+.toast-info .toast-icon {
+  color: var(--primary);
+}
+
+/* ============================================================
+   Audit Log
+   ============================================================ */
+.audit-filters {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.audit-filters label {
+  flex: 1;
+  min-width: 140px;
+}
+
+.audit-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.audit-event {
+  display: flex;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.audit-event:last-child {
+  border-bottom: none;
+}
+
+.audit-event-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.03);
+  border-radius: 10px;
+}
+
+.audit-event-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.audit-event-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.audit-event-meta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.audit-actor {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.audit-event-time {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* ============================================================
+   Settings
+   ============================================================ */
+.settings-status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-status-row:last-child {
+  border-bottom: none;
+}
+
+.settings-about p {
+  margin: 4px 0;
+}
+
+/* ============================================================
    Responsive
    ============================================================ */
 @media (max-width: 900px) {
@@ -1561,6 +1751,20 @@ details[open] summary {
   .log-controls input,
   .backup-controls select {
     width: 100%;
+  }
+
+  .audit-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toast-container {
+    left: 16px;
+    right: 16px;
+  }
+
+  .toast {
+    max-width: 100%;
   }
 }
 
