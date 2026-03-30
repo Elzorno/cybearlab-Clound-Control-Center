@@ -478,13 +478,15 @@
   }
 
   window.app = window.app || {};
-  window.app.closeGradeFilePicker = function() {
+  window.app.closeGradeFilePicker = closeGradeFilePicker;
+
+  function closeGradeFilePicker() {
     $("#gradeFilePicker").classList.add("hidden");
     pickerUser = "";
     pickerPath = "";
     pickerSelectedPath = "";
     updatePickerPreview();
-  };
+  }
 
   async function loadPickerUsers() {
     try {
@@ -538,7 +540,7 @@
       const url = buildPickerUrl();
       $("#gradeUrl").value = url;
       $("#gradeStudent").value = pickerUser;
-      window.app.closeGradeFilePicker();
+      closeGradeFilePicker();
       showToast(`Selected: ${url}`, "success");
     });
   }
@@ -4269,6 +4271,8 @@
     renewCert,
     renewAllCerts,
     deleteCert,
+    // Grader File Picker
+    closeGradeFilePicker,
   };
 
   // Start
