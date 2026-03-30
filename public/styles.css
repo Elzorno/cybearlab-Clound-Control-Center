@@ -842,10 +842,12 @@ label {
   position: absolute;
   inset: 0;
   background: rgba(0,0,0,0.4);
+  z-index: 1;
 }
 
 .modal-content {
   position: relative;
+  z-index: 2;
   width: 90%;
   max-width: 600px;
   max-height: 80vh;
@@ -1448,6 +1450,7 @@ details[open] summary {
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
+  z-index: 0;
 }
 
 .modal-content {
