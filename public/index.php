@@ -10,7 +10,7 @@ declare(strict_types=1);
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=<?= filemtime(__DIR__.'/styles.css') ?>" />
 </head>
 <body>
   <div class="bg-layer"></div>
@@ -57,6 +57,8 @@ declare(strict_types=1);
             <a href="#/cron" class="nav-link" data-route="cron">Cron Jobs</a>
             <a href="#/security" class="nav-link" data-route="security">Security</a>
             <a href="#/ssl" class="nav-link" data-route="ssl">SSL/TLS</a>
+            <a href="#/updates" class="nav-link" data-route="updates">Updates</a>
+            <a href="#/deploy" class="nav-link" data-route="deploy">Deployment</a>
           </div>
         </div>
         <div class="nav-dropdown">
@@ -132,7 +134,7 @@ declare(strict_types=1);
     <!-- View: Auto-Grader -->
     <section id="view-grader" class="view hidden">
       <div class="view-header">
-        <h2>Auto-Grader</h2>
+        <h2>Auto-Grader <span class="help-tip" data-help="Crawl student sites, validate HTML/CSS via W3C, and score against a rubric. Results are saved and exportable.">?</span></h2>
         <p class="muted">Submit a URL for automated rubric-based grading</p>
       </div>
       <div class="grader-layout">
@@ -260,7 +262,7 @@ declare(strict_types=1);
     <!-- View: Student Admin -->
     <section id="view-admin" class="view hidden">
       <div class="view-header">
-        <h2>Student Admin</h2>
+        <h2>Student Admin <span class="help-tip" data-help="Run admin scripts, upload student rosters (CSV), and perform bulk operations like adding or resetting students.">?</span></h2>
         <p class="muted">Manage student accounts and server operations</p>
       </div>
       <div class="grid-2">
@@ -528,7 +530,7 @@ declare(strict_types=1);
     <!-- View: Users -->
     <section id="view-users" class="view hidden">
       <div class="view-header">
-        <h2>User Management</h2>
+        <h2>User Management <span class="help-tip" data-help="View, suspend, unsuspend, set quotas, and delete individual Linux user accounts on the server.">?</span></h2>
         <p class="muted">Manage student accounts, quotas, and access</p>
       </div>
 
@@ -608,7 +610,7 @@ declare(strict_types=1);
     <!-- View: File Manager -->
     <section id="view-files" class="view hidden">
       <div class="view-header">
-        <h2>File Manager</h2>
+        <h2>File Manager <span class="help-tip" data-help="Browse, upload, download, edit, rename, and change permissions on files in student home directories.">?</span></h2>
         <p class="muted">Browse and manage user files</p>
       </div>
 
@@ -767,7 +769,7 @@ declare(strict_types=1);
     <!-- View: Database Management -->
     <section id="view-databases" class="view hidden">
       <div class="view-header">
-        <h2>Database Management</h2>
+        <h2>Database Management <span class="help-tip" data-help="Create and manage MySQL databases and users for each student. Run SQL queries and import/export data.">?</span></h2>
         <p class="muted">Manage MySQL databases and users</p>
       </div>
 
@@ -923,7 +925,7 @@ declare(strict_types=1);
     <!-- View: FTP Management -->
     <section id="view-ftp" class="view hidden">
       <div class="view-header">
-        <h2>FTP Account Management</h2>
+        <h2>FTP Account Management <span class="help-tip" data-help="Create, enable/disable, and manage FTP accounts for student file access. Set passwords and directories.">?</span></h2>
         <p class="muted">Create and manage FTP accounts for file access</p>
       </div>
 
@@ -1094,7 +1096,7 @@ declare(strict_types=1);
     <!-- View: DNS Management -->
     <section id="view-dns" class="view hidden">
       <div class="view-header">
-        <h2>DNS Management</h2>
+        <h2>DNS Management <span class="help-tip" data-help="Manage DNS records via the Hostinger API. Create A, CNAME, TXT, and MX records for your domain.">?</span></h2>
         <p class="muted">Manage domain records and SSL certificates</p>
       </div>
 
@@ -1319,7 +1321,7 @@ declare(strict_types=1);
     <!-- View: Cron Jobs -->
     <section id="view-cron" class="view hidden">
       <div class="view-header">
-        <h2>Cron Jobs</h2>
+        <h2>Cron Jobs <span class="help-tip" data-help="Schedule recurring tasks for individual users. Use presets or custom cron expressions.">?</span></h2>
         <p class="muted">Scheduled task management for users</p>
       </div>
 
@@ -1429,7 +1431,7 @@ declare(strict_types=1);
     <!-- View: Security -->
     <section id="view-security" class="view hidden">
       <div class="view-header">
-        <h2>Security Center</h2>
+        <h2>Security Center <span class="help-tip" data-help="Manage SSH keys, Fail2Ban jails, UFW firewall rules, and ModSecurity WAF settings.">?</span></h2>
         <p class="muted">SSH keys, firewall, and intrusion prevention</p>
       </div>
 
@@ -1547,7 +1549,7 @@ declare(strict_types=1);
     <!-- View: SSL Certificates -->
     <section id="view-ssl" class="view hidden">
       <div class="view-header">
-        <h2>SSL/TLS Certificates</h2>
+        <h2>SSL/TLS Certificates <span class="help-tip" data-help="Request, renew, and manage Let's Encrypt SSL certificates. View expiry warnings.">?</span></h2>
         <p class="muted">Let's Encrypt certificate management</p>
       </div>
 
@@ -1734,10 +1736,210 @@ declare(strict_types=1);
       </article>
     </section>
 
+    <!-- View: Updates -->
+    <section id="view-updates" class="view hidden">
+      <div class="view-header">
+        <h2>System Updates <span class="help-tip" data-help="Check for and apply OS package updates. Security patches are highlighted for priority.">?</span></h2>
+        <p class="muted">Check and apply OS/package updates</p>
+      </div>
+
+      <div class="grid-2">
+        <article class="card glass">
+          <h3>Update Status</h3>
+          <div class="settings-status-grid">
+            <div class="settings-status-row">
+              <span>Available Updates</span>
+              <span id="updTotalPill" class="pill neutral">—</span>
+            </div>
+            <div class="settings-status-row">
+              <span>Security Updates</span>
+              <span id="updSecurityPill" class="pill neutral">—</span>
+            </div>
+            <div class="settings-status-row">
+              <span>Reboot Required</span>
+              <span id="updRebootPill" class="pill neutral">—</span>
+            </div>
+            <div class="settings-status-row">
+              <span>Last Checked</span>
+              <span id="updLastCheck" class="mono small">—</span>
+            </div>
+          </div>
+          <div class="btn-group" style="margin-top:12px">
+            <button id="updCheckBtn" class="btn">Check for Updates</button>
+            <button id="updRefreshBtn" class="btn btn-ghost">↻ Refresh APT</button>
+          </div>
+        </article>
+
+        <article class="card glass">
+          <h3>Software Versions</h3>
+          <div id="updVersionsGrid" class="settings-status-grid">
+            <p class="muted">Loading...</p>
+          </div>
+        </article>
+      </div>
+
+      <article class="card glass">
+        <div class="card-header-row">
+          <h3>Available Packages</h3>
+          <div class="btn-group">
+            <button id="updApplySecurityBtn" class="btn btn-sm" disabled>Apply Security Only</button>
+            <button id="updApplyAllBtn" class="btn btn-sm primary" disabled>Apply All Updates</button>
+          </div>
+        </div>
+        <div id="updProgress" class="progress-container hidden">
+          <div class="progress-bar"><div id="updProgressFill" class="progress-fill"></div></div>
+          <p id="updProgressText" class="muted small">Applying updates...</p>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="updSelectAll" /></th>
+                <th>Package</th>
+                <th>Current Version</th>
+                <th>New Version</th>
+                <th>Source</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody id="updPackagesBody">
+              <tr><td colspan="6" class="muted">Click "Check for Updates" to scan.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <!-- View: Deployment -->
+    <section id="view-deploy" class="view hidden">
+      <div class="view-header">
+        <h2>Deployment <span class="help-tip" data-help="Generate and install systemd and nginx configs. Control the API service lifecycle.">?</span></h2>
+        <p class="muted">Service management and configuration generation</p>
+      </div>
+
+      <div class="grid-2">
+        <article class="card glass">
+          <h3>API Service</h3>
+          <div class="settings-status-grid">
+            <div class="settings-status-row">
+              <span>Status</span>
+              <span id="deployServiceStatus" class="pill neutral">—</span>
+            </div>
+            <div class="settings-status-row">
+              <span>Enabled at Boot</span>
+              <span id="deployServiceEnabled" class="pill neutral">—</span>
+            </div>
+            <div class="settings-status-row">
+              <span>Python</span>
+              <span id="deployPython" class="mono small">—</span>
+            </div>
+            <div class="settings-status-row">
+              <span>App Directory</span>
+              <span id="deployAppDir" class="mono small">—</span>
+            </div>
+          </div>
+          <div class="btn-group" style="margin-top:12px">
+            <button onclick="app.deployServiceAction('restart')" class="btn btn-sm primary">Restart</button>
+            <button onclick="app.deployServiceAction('stop')" class="btn btn-sm">Stop</button>
+            <button onclick="app.deployServiceAction('start')" class="btn btn-sm">Start</button>
+          </div>
+        </article>
+
+        <article class="card glass">
+          <h3>Nginx</h3>
+          <div class="settings-status-grid">
+            <div class="settings-status-row">
+              <span>Config Installed</span>
+              <span id="deployNginxConfig" class="pill neutral">—</span>
+            </div>
+            <div class="settings-status-row">
+              <span>Site Enabled</span>
+              <span id="deployNginxEnabled" class="pill neutral">—</span>
+            </div>
+          </div>
+          <div class="btn-group" style="margin-top:12px">
+            <button onclick="app.reloadNginx()" class="btn btn-sm">Reload Nginx</button>
+          </div>
+        </article>
+      </div>
+
+      <!-- Config Generators -->
+      <article class="card glass">
+        <div class="action-tabs">
+          <button class="tab-btn active" data-deploy-tab="systemd">Systemd Unit</button>
+          <button class="tab-btn" data-deploy-tab="nginx">Nginx Config</button>
+          <button class="tab-btn" data-deploy-tab="logs">Service Logs</button>
+        </div>
+
+        <!-- Systemd Panel -->
+        <div id="deploySystemdPanel" class="deploy-panel">
+          <div class="panel-form panel-form-inline">
+            <label>API Port
+              <input id="deployPort" class="input" type="number" value="8000" min="1024" max="65535" style="width:120px" />
+            </label>
+            <button id="deployPreviewSystemdBtn" class="btn">Preview</button>
+            <button id="deployInstallSystemdBtn" class="btn primary">Install Service</button>
+          </div>
+          <pre id="deploySystemdPreview" class="output">Click "Preview" to see the generated unit file.</pre>
+        </div>
+
+        <!-- Nginx Panel -->
+        <div id="deployNginxPanel" class="deploy-panel hidden">
+          <div class="panel-form">
+            <div class="grid-3">
+              <label>Server Name
+                <input id="deployServerName" class="input" value="admin.cybearlab.cloud" />
+              </label>
+              <label>Proxy Port
+                <input id="deployProxyPort" class="input" type="number" value="8000" min="1024" max="65535" />
+              </label>
+              <label>Web Root
+                <input id="deployWebRoot" class="input" value="/var/www/iscs1800-admin/public" />
+              </label>
+            </div>
+            <div class="grid-3" style="margin-top:8px">
+              <label>SSL Certificate Path
+                <input id="deploySslCert" class="input" placeholder="/etc/letsencrypt/live/..." />
+              </label>
+              <label>SSL Key Path
+                <input id="deploySslKey" class="input" placeholder="/etc/letsencrypt/live/..." />
+              </label>
+              <label class="checkbox-label" style="align-self:end;padding-bottom:8px">
+                <input id="deploySslEnabled" type="checkbox" checked /> Enable SSL
+                &nbsp;&nbsp;
+                <input id="deployPhpEnabled" type="checkbox" checked /> Enable PHP
+              </label>
+            </div>
+            <div class="btn-group" style="margin-top:8px">
+              <button id="deployPreviewNginxBtn" class="btn">Preview</button>
+              <button id="deployInstallNginxBtn" class="btn primary">Install &amp; Reload</button>
+            </div>
+          </div>
+          <pre id="deployNginxPreview" class="output">Click "Preview" to see the generated nginx config.</pre>
+        </div>
+
+        <!-- Logs Panel -->
+        <div id="deployLogsPanel" class="deploy-panel hidden">
+          <div class="panel-actions">
+            <label>Lines
+              <select id="deployLogLines" class="input" style="width:100px">
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="250">250</option>
+                <option value="500">500</option>
+              </select>
+            </label>
+            <button id="deployRefreshLogsBtn" class="btn btn-sm btn-ghost">↻ Refresh</button>
+          </div>
+          <pre id="deployLogsOutput" class="output">Click "Refresh" to load service logs.</pre>
+        </div>
+      </article>
+    </section>
+
   </main>
 
   <div id="toastContainer" class="toast-container"></div>
 
-  <script src="./app.js" defer></script>
+  <script src="./app.js?v=<?= filemtime(__DIR__.'/app.js') ?>" defer></script>
 </body>
 </html>

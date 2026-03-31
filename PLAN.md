@@ -62,10 +62,12 @@ Moved student webroots from `/srv/students/{term}/{user}/public_html` to `/home/
 - [x] Removed `/srv/students` directory
 - [x] Removed term-based logic from codebase
 
-## Phase 8 — Production & Documentation ⬅️ NEXT
-- [ ] Auto-updates — package checker, one-click OS/service updates
-- [ ] Deployment automation — systemd service, Nginx config generation
-- [ ] Documentation — admin guide, in-app help tooltips
+## Phase 8 — Production & Documentation ✅
+- [x] Auto-updates — package checker, one-click OS/service updates (apt list/refresh/apply)
+- [x] Deployment automation — systemd service unit generator, Nginx config generator, service control
+- [x] Documentation — in-app help tooltips on all view headers (CSS-only hover tooltips)
+- [x] Frontend views for Updates (`#/updates`) and Deployment (`#/deploy`)
+- [x] Backend routers: `/updates` (check, refresh, apply, versions) and `/deployment` (status, systemd, nginx, logs)
 
 ---
 
@@ -93,6 +95,8 @@ The following features were deemed unnecessary for single-instructor use:
 | Cron Jobs | `#/cron` | ✅ |
 | Security | `#/security` | ✅ |
 | SSL Certificates | `#/ssl` | ✅ |
+| Updates | `#/updates` | ✅ |
+| Deployment | `#/deploy` | ✅ |
 | System | `#/system` | ✅ |
 | Reports | `#/reports` | ✅ |
 | Audit Log | `#/audit` | ✅ |
@@ -115,3 +119,5 @@ The following features were deemed unnecessary for single-instructor use:
 | cron | `/cron` | GET /{user}, GET /{user}/{id}, POST /{user}, PUT /{user}/{id}, DELETE /{user}/{id}, POST /{user}/{id}/toggle, GET /schedules/common, POST /schedules/describe |
 | security | `/security` | GET/POST/DELETE /ssh-keys/{user}, GET /fail2ban/status, GET /fail2ban/banned/{jail}, POST /fail2ban/ban/{jail}, POST /fail2ban/unban/{jail}, GET /ufw/status, POST /ufw/enable, POST /ufw/disable, POST/DELETE /ufw/rules, GET /modsecurity/status, POST /modsecurity/mode |
 | ssl | `/ssl` | GET /certificates, GET /certificates/{domain}, POST /certificates, POST /certificates/{domain}/renew, POST /certificates/renew-all, POST /certificates/{domain}/revoke, DELETE /certificates/{domain}, GET /warnings |
+| updates | `/updates` | POST /refresh, GET /check, POST /apply, GET /versions |
+| deployment | `/deployment` | GET /status, POST /systemd/install, POST /systemd/control, POST /systemd/preview, POST /nginx/install, POST /nginx/preview, POST /nginx/reload, GET /logs |

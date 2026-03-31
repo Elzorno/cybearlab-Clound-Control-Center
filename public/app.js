@@ -134,6 +134,8 @@
     "/cron": "cron",
     "/security": "security",
     "/ssl": "ssl",
+    "/updates": "updates",
+    "/deploy": "deploy",
     "/reports": "reports",
     "/audit": "audit",
     "/settings": "settings",
@@ -176,6 +178,8 @@
     if (route === "cron") loadCronView();
     if (route === "security") loadSecurityView();
     if (route === "ssl") loadSslView();
+    if (route === "updates") loadUpdatesView();
+    if (route === "deploy") loadDeployView();
     if (route === "audit") loadAuditView();
     if (route === "settings") loadSettingsView();
   }
@@ -4191,6 +4195,384 @@
   }
 
   // ============================================================
+  // Updates View
+  // ============================================================
+  let updatesData = null;
+
+  async function loadUpdatesView() {
+    loadServiceVersions();
+    setupUpdatesEvents();
+  }
+
+  function setupUpdatesEvents() {
+    const checkBtn = $("#updCheckBtn");
+    const refreshBtn = $("#updRefreshBtn");
+    const applySecBtn = $("#updApplySecurityBtn");
+    const applyAllBtn = $("#updApplyAllBtn");
+    const selectAll = $("#updSelectAll");
+
+    if (checkBtn) checkBtn.onclick = checkForUpdates;
+    if (refreshBtn) refreshBtn.onclick = refreshApt;
+    if (applySecBtn) applySecBtn.onclick = () => applyUpdates(true);
+    if (applyAllBtn) applyAllBtn.onclick = () => applyUpdates(false);
+    if (selectAll) selectAll.onchange = (e) => {
+      $$("#updPackagesBody input[type=checkbox]").forEach((cb) => {
+        cb.checked = e.target.checked;
+      });
+    };
+  }
+
+  async function loadServiceVersions() {
+    try {
+      const { res, data } = await api("/updates/versions");
+      if (res.ok && data.versions) {
+        const grid = $("#updVersionsGrid");
+        grid.innerHTML = Object.entries(data.versions)
+          .map(
+            ([name, ver]) => `
+          <div class="settings-status-row">
+            <span>${name}</span>
+            <span class="mono small">${escHtml(ver)}</span>
+          </div>`
+          )
+          .join("");
+      }
+    } catch (err) {
+      showToast(`Error loading versions: ${err.message}`, "error");
+    }
+  }
+
+  async function refreshApt() {
+    $("#updRefreshBtn").disabled = true;
+    try {
+      const { res, data } = await api("/updates/refresh", { method: "POST" });
+      if (res.ok) {
+        showToast("APT package list refreshed", "success");
+      } else {
+        showToast(data.detail || "Failed to refresh", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    } finally {
+      $("#updRefreshBtn").disabled = false;
+    }
+  }
+
+  async function checkForUpdates() {
+    $("#updCheckBtn").disabled = true;
+    $("#updCheckBtn").textContent = "Checking...";
+    try {
+      const { res, data } = await api("/updates/check");
+      if (res.ok) {
+        updatesData = data;
+        renderUpdateStatus(data);
+        renderUpdatePackages(data.packages);
+      } else {
+        showToast(data.detail || "Failed to check updates", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    } finally {
+      $("#updCheckBtn").disabled = false;
+      $("#updCheckBtn").textContent = "Check for Updates";
+    }
+  }
+
+  function renderUpdateStatus(data) {
+    const totalPill = $("#updTotalPill");
+    totalPill.textContent = data.total;
+    totalPill.className = `pill ${data.total > 0 ? "warn" : "ok"}`;
+
+    const secPill = $("#updSecurityPill");
+    secPill.textContent = data.security;
+    secPill.className = `pill ${data.security > 0 ? "danger" : "ok"}`;
+
+    const rebootPill = $("#updRebootPill");
+    rebootPill.textContent = data.reboot_required ? "Yes" : "No";
+    rebootPill.className = `pill ${data.reboot_required ? "warn" : "ok"}`;
+
+    if (data.last_check) {
+      $("#updLastCheck").textContent = new Date(data.last_check).toLocaleString();
+    }
+
+    $("#updApplySecurityBtn").disabled = data.security === 0;
+    $("#updApplyAllBtn").disabled = data.total === 0;
+  }
+
+  function renderUpdatePackages(packages) {
+    const tbody = $("#updPackagesBody");
+    if (!packages || packages.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted">System is up to date.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = packages
+      .map(
+        (p) => `
+      <tr>
+        <td><input type="checkbox" value="${escHtml(p.name)}" checked /></td>
+        <td class="mono">${escHtml(p.name)}</td>
+        <td class="mono small">${escHtml(p.current_version)}</td>
+        <td class="mono small">${escHtml(p.new_version)}</td>
+        <td>${escHtml(p.source)}</td>
+        <td>${p.is_security ? '<span class="pill danger">Security</span>' : '<span class="pill neutral">Standard</span>'}</td>
+      </tr>`
+      )
+      .join("");
+  }
+
+  async function applyUpdates(securityOnly) {
+    const selectedPkgs = [];
+    $$("#updPackagesBody input[type=checkbox]:checked").forEach((cb) => {
+      selectedPkgs.push(cb.value);
+    });
+
+    const label = securityOnly ? "security updates" : `${selectedPkgs.length} package(s)`;
+    if (!confirm(`Apply ${label}? This may take several minutes.`)) return;
+
+    $("#updProgress").classList.remove("hidden");
+    $("#updProgressFill").style.width = "0%";
+    $("#updProgressText").textContent = "Applying updates...";
+    $("#updApplyAllBtn").disabled = true;
+    $("#updApplySecurityBtn").disabled = true;
+
+    // Animate progress
+    let pct = 0;
+    const progressTimer = setInterval(() => {
+      pct = Math.min(pct + 2, 90);
+      $("#updProgressFill").style.width = `${pct}%`;
+    }, 1000);
+
+    try {
+      const body = securityOnly
+        ? { security_only: true }
+        : { package_names: selectedPkgs.length > 0 ? selectedPkgs : null };
+      const { res, data } = await api("/updates/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      clearInterval(progressTimer);
+      $("#updProgressFill").style.width = "100%";
+
+      if (res.ok && data.success) {
+        $("#updProgressText").textContent = data.message;
+        showToast(data.message, "success");
+        // Re-check updates
+        setTimeout(checkForUpdates, 2000);
+      } else {
+        $("#updProgressText").textContent = data.message || "Update failed";
+        showToast(data.message || data.detail || "Update failed", "error");
+      }
+    } catch (err) {
+      clearInterval(progressTimer);
+      $("#updProgressText").textContent = `Error: ${err.message}`;
+      showToast(`Error: ${err.message}`, "error");
+    } finally {
+      setTimeout(() => $("#updProgress").classList.add("hidden"), 5000);
+      $("#updApplyAllBtn").disabled = false;
+      $("#updApplySecurityBtn").disabled = false;
+    }
+  }
+
+  // ============================================================
+  // Deployment View
+  // ============================================================
+
+  async function loadDeployView() {
+    await loadDeploymentStatus();
+    setupDeployEvents();
+  }
+
+  function setupDeployEvents() {
+    // Tab switching
+    $$("#view-deploy .tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = btn.dataset.deployTab;
+        $$("#view-deploy .tab-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        $$(".deploy-panel").forEach((p) => p.classList.add("hidden"));
+        $(`#deploy${tab.charAt(0).toUpperCase() + tab.slice(1)}Panel`)?.classList.remove("hidden");
+      });
+    });
+
+    const previewSys = $("#deployPreviewSystemdBtn");
+    const installSys = $("#deployInstallSystemdBtn");
+    const previewNgx = $("#deployPreviewNginxBtn");
+    const installNgx = $("#deployInstallNginxBtn");
+    const refreshLogs = $("#deployRefreshLogsBtn");
+
+    if (previewSys) previewSys.onclick = previewSystemd;
+    if (installSys) installSys.onclick = installSystemd;
+    if (previewNgx) previewNgx.onclick = previewNginx;
+    if (installNgx) installNgx.onclick = installNginx;
+    if (refreshLogs) refreshLogs.onclick = loadDeployLogs;
+  }
+
+  async function loadDeploymentStatus() {
+    try {
+      const { res, data } = await api("/deployment/status");
+      if (res.ok) {
+        const statusPill = $("#deployServiceStatus");
+        statusPill.textContent = data.service_status;
+        statusPill.className = `pill ${data.service_active ? "ok" : "warn"}`;
+
+        const enabledPill = $("#deployServiceEnabled");
+        enabledPill.textContent = data.service_enabled ? "Yes" : "No";
+        enabledPill.className = `pill ${data.service_enabled ? "ok" : "neutral"}`;
+
+        $("#deployPython").textContent = data.python_version;
+        $("#deployAppDir").textContent = data.app_dir;
+
+        const ngxConfig = $("#deployNginxConfig");
+        ngxConfig.textContent = data.nginx_config_exists ? "Yes" : "No";
+        ngxConfig.className = `pill ${data.nginx_config_exists ? "ok" : "neutral"}`;
+
+        const ngxEnabled = $("#deployNginxEnabled");
+        ngxEnabled.textContent = data.nginx_config_enabled ? "Yes" : "No";
+        ngxEnabled.className = `pill ${data.nginx_config_enabled ? "ok" : "neutral"}`;
+      }
+    } catch (err) {
+      showToast(`Error loading status: ${err.message}`, "error");
+    }
+  }
+
+  async function deployServiceAction(action) {
+    try {
+      const { res, data } = await api("/deployment/systemd/control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok && data.success) {
+        showToast(data.message, "success");
+        setTimeout(loadDeploymentStatus, 1000);
+      } else {
+        showToast(data.message || data.detail || `Failed to ${action} service`, "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function reloadNginx() {
+    try {
+      const { res, data } = await api("/deployment/nginx/reload", { method: "POST" });
+      if (res.ok && data.success) {
+        showToast("Nginx reloaded", "success");
+      } else {
+        showToast(data.message || data.detail || "Nginx reload failed", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function previewSystemd() {
+    try {
+      const port = parseInt($("#deployPort").value) || 8000;
+      const { res, data } = await api("/deployment/systemd/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ port }),
+      });
+      if (res.ok) {
+        $("#deploySystemdPreview").textContent = data.content;
+      } else {
+        showToast(data.detail || "Preview failed", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function installSystemd() {
+    if (!confirm("Install/overwrite the systemd service unit?")) return;
+    try {
+      const port = parseInt($("#deployPort").value) || 8000;
+      const { res, data } = await api("/deployment/systemd/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ port }),
+      });
+      if (res.ok && data.success) {
+        showToast(data.message, "success");
+        loadDeploymentStatus();
+      } else {
+        showToast(data.message || data.detail || "Install failed", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function getNginxConfigFromForm() {
+    return {
+      server_name: $("#deployServerName").value.trim(),
+      proxy_port: parseInt($("#deployProxyPort").value) || 8000,
+      root_dir: $("#deployWebRoot").value.trim(),
+      ssl_enabled: $("#deploySslEnabled").checked,
+      ssl_cert_path: $("#deploySslCert").value.trim(),
+      ssl_key_path: $("#deploySslKey").value.trim(),
+      php_enabled: $("#deployPhpEnabled").checked,
+    };
+  }
+
+  async function previewNginx() {
+    try {
+      const config = getNginxConfigFromForm();
+      const { res, data } = await api("/deployment/nginx/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      if (res.ok) {
+        $("#deployNginxPreview").textContent = data.content;
+      } else {
+        showToast(data.detail || "Preview failed", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function installNginx() {
+    if (!confirm("Install/overwrite the nginx site config and reload?")) return;
+    try {
+      const config = getNginxConfigFromForm();
+      const { res, data } = await api("/deployment/nginx/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      if (res.ok && data.success) {
+        showToast(data.message, "success");
+        loadDeploymentStatus();
+      } else {
+        showToast(data.message || data.detail || "Install failed", "error");
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  }
+
+  async function loadDeployLogs() {
+    const lines = parseInt($("#deployLogLines").value) || 100;
+    $("#deployLogsOutput").textContent = "Loading...";
+    try {
+      const { res, data } = await api(`/deployment/logs?lines=${lines}`);
+      if (res.ok) {
+        $("#deployLogsOutput").textContent = data.logs || "No logs available.";
+        $("#deployLogsOutput").scrollTop = $("#deployLogsOutput").scrollHeight;
+      } else {
+        $("#deployLogsOutput").textContent = data.detail || "Failed to load logs.";
+      }
+    } catch (err) {
+      $("#deployLogsOutput").textContent = `Error: ${err.message}`;
+    }
+  }
+
+  // ============================================================
   // Init
   // ============================================================
   async function init() {
@@ -4271,6 +4653,9 @@
     renewCert,
     renewAllCerts,
     deleteCert,
+    // Updates & Deployment
+    deployServiceAction,
+    reloadNginx,
     // Grader File Picker
     closeGradeFilePicker,
   };
