@@ -293,7 +293,7 @@
     container.innerHTML = items
       .map((item) => {
         const score = item.total_score != null ? Math.round(item.total_score) : "—";
-        const scoreClass = item.total_score >= 70 ? "ok" : item.total_score >= 50 ? "warn" : "low";
+        const scoreClass = item.total_score >= 350 ? "ok" : item.total_score >= 250 ? "warn" : "low";
         const date = new Date(item.created_at).toLocaleDateString();
         const urlShort = item.url?.replace(/^https?:\/\//, "").slice(0, 30) || "—";
         return `
@@ -411,9 +411,9 @@
     const gauge = $("#gaugeCircle");
     const circumference = 2 * Math.PI * 45;
     gauge.style.strokeDasharray = circumference;
-    gauge.style.strokeDashoffset = circumference - (score / 100) * circumference;
+    gauge.style.strokeDashoffset = circumference - (score / 500) * circumference;
     gauge.classList.remove("low", "mid", "high");
-    gauge.classList.add(score >= 70 ? "high" : score >= 50 ? "mid" : "low");
+    gauge.classList.add(score >= 350 ? "high" : score >= 250 ? "mid" : "low");
 
     // Rubric breakdown
     if (data.sections) {
@@ -437,13 +437,11 @@
   function renderRubricSections(sections) {
     const container = $("#rubricSections");
     const labels = {
-      page_count: "Page Count",
-      external_stylesheet: "External Stylesheet",
-      structures: "HTML Structures",
-      responsiveness: "Responsiveness",
-      theme: "Theme Consistency",
-      navigation: "Navigation",
-      validity: "W3C Validity",
+      scope_theme_content: "1. Scope, Theme & Content",
+      navigation_semantic: "2. Navigation & Semantic HTML",
+      css_design_responsive: "3. CSS, Design & Responsiveness",
+      required_elements: "4. Required Elements & Media",
+      js_validation_security: "5. JS, Validation & Security",
     };
 
     container.innerHTML = Object.entries(sections)
@@ -798,7 +796,7 @@
         .map((item) => {
           const date = new Date(item.created_at).toLocaleString();
           const score = item.total_score != null ? Math.round(item.total_score) : "—";
-          const scoreClass = item.total_score >= 70 ? "ok" : item.total_score >= 50 ? "warn" : "low";
+          const scoreClass = item.total_score >= 350 ? "ok" : item.total_score >= 250 ? "warn" : "low";
           const urlShort = item.url?.replace(/^https?:\/\//, "").slice(0, 35) || "—";
           return `
             <tr>

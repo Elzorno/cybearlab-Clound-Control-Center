@@ -193,7 +193,7 @@ declare(strict_types=1);
                 <span class="gauge-value" id="totalScore">—</span>
               </div>
               <div class="score-meta">
-                <p class="score-title">Total Score</p>
+                <p class="score-title">Total Score <small>/ 500</small></p>
                 <p class="score-url" id="scoredUrl">—</p>
               </div>
             </div>
