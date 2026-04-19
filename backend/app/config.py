@@ -31,6 +31,7 @@ class Settings:
     grader_max_pages: int = int(os.getenv("GRADER_MAX_PAGES", "30"))
     grader_http_timeout_seconds: int = int(os.getenv("GRADER_HTTP_TIMEOUT_SECONDS", "20"))
     grader_validator_endpoint: str = os.getenv("GRADER_VALIDATOR_ENDPOINT", "https://validator.w3.org/nu/")
+    grader_css_validator_endpoint: str = os.getenv("GRADER_CSS_VALIDATOR_ENDPOINT", "https://jigsaw.w3.org/css-validator/validator")
 
 
 settings = Settings()
