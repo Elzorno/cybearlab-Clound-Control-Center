@@ -15,6 +15,9 @@
   let reportsPage = 1;
   let reportsPageSize = 15;
   let currentAdminAction = "add_student";
+  let webgraderAssignments = [];
+  let rubricTemplates = [];
+  let editingAssignmentId = null;
 
   const PROXY_BASE = `${window.location.origin}/api-proxy.php`;
   const REVERSE_PROXY_BASE = `${window.location.origin}/api`;
@@ -168,7 +171,8 @@
 
     // Fire view-specific init
     if (route === "overview") loadOverview();
-    if (route === "reports") loadReports();
+    if (route === "grader") loadActiveAssignments();
+    if (route === "reports") loadWebgraderDashboard();
     if (route === "system") loadSystemView();
     if (route === "users") loadUsersView();
     if (route === "files") loadFilesView();
@@ -202,6 +206,14 @@
     $("#loginGate").classList.remove("hidden");
     $("#appShell").classList.add("hidden");
     token = "";
+  }
+
+  function showPublicGrader() {
+    token = "";
+    $("#loginGate").classList.add("hidden");
+    $("#appShell").classList.remove("hidden");
+    window.location.hash = "#/grader";
+    showView("grader");
   }
 
   async function handleLogin() {
@@ -273,10 +285,10 @@
 
     // Recent grades
     try {
-      const { res, data } = await api("/grader/runs?pageSize=5");
+      const { res, data } = await api("/submissions");
       if (res.ok && data.items) {
-        $("#recentGradesCount").textContent = data.total ?? data.items.length;
-        renderRecentGrades(data.items);
+        $("#recentGradesCount").textContent = data.items.length;
+        renderRecentGrades(data.items.slice(0, 5));
       }
     } catch {
       $("#recentGrades").innerHTML = '<p class="muted">Failed to load.</p>';
@@ -292,10 +304,11 @@
 
     container.innerHTML = items
       .map((item) => {
-        const score = item.total_score != null ? Math.round(item.total_score) : "—";
-        const scoreClass = item.total_score >= 350 ? "ok" : item.total_score >= 250 ? "warn" : "low";
-        const date = new Date(item.created_at).toLocaleDateString();
-        const urlShort = item.url?.replace(/^https?:\/\//, "").slice(0, 30) || "—";
+        const pct = item.percentScore ?? 0;
+        const score = item.score != null ? `${Math.round(pct)}%` : "—";
+        const scoreClass = pct >= 70 ? "ok" : pct >= 50 ? "warn" : "low";
+        const date = new Date(item.submittedAt).toLocaleDateString();
+        const urlShort = item.projectUrl?.replace(/^https?:\/\//, "").slice(0, 30) || "—";
         return `
           <div class="recent-item">
             <span class="recent-score ${scoreClass}">${score}</span>
@@ -310,57 +323,76 @@
   // ============================================================
   // Grader View
   // ============================================================
+  async function loadActiveAssignments() {
+    const select = $("#gradeAssignment");
+    if (!select) return;
+    try {
+      const { res, data } = await api("/assignments/active");
+      if (!res.ok) throw new Error(data.detail || "Unable to load assignments");
+      webgraderAssignments = data || [];
+      select.innerHTML = webgraderAssignments.length
+        ? webgraderAssignments.map((a) => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)}</option>`).join("")
+        : '<option value="">No active assignments</option>';
+    } catch (err) {
+      select.innerHTML = '<option value="">Assignments unavailable</option>';
+      showToast(`Assignments failed to load: ${err.message}`, "error");
+    }
+  }
+
   async function handleGrade() {
+    const assignmentId = $("#gradeAssignment")?.value || "";
+    const studentName = $("#gradeStudent")?.value.trim() || "";
+    const studentEmail = $("#gradeEmail")?.value.trim() || "";
     const url = $("#gradeUrl").value.trim();
-    if (!url) {
-      showToast("Enter a URL to grade.", "warn");
+    if (!assignmentId || !studentName || !studentEmail || !url) {
+      showToast("Choose an assignment and fill in name, email, and project URL.", "warn");
       return;
     }
 
-    const student = $("#gradeStudent")?.value.trim() || null;
-    const term = $("#gradeTerm")?.value.trim() || null;
-
-    // Reset UI
     $("#gradeStatus").classList.remove("hidden");
     $("#gradeScore").classList.add("hidden");
     $("#gradeRubric").classList.add("hidden");
     $("#gradeFeedback").classList.add("hidden");
     $("#gradeRaw").classList.add("hidden");
+    $("#ticketCard").classList.add("hidden");
     setGradeStep("queued");
 
     $("#gradeBtn").disabled = true;
-    $("#gradeBtn").textContent = "Running...";
+    $("#gradeBtn").textContent = "Submitting...";
 
     try {
-      const body = { url };
-      if (student) body.student_username = student;
-      if (term) body.term = term;
-
-      const create = await api("/grader/runs", {
+      const create = await api("/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          assignmentId,
+          studentName,
+          studentEmail,
+          projectUrl: url,
+        }),
       });
 
       if (!create.res.ok) {
-        showToast(`Failed to start grading: ${create.data?.detail || "Unknown error"}`, "error");
+        showToast(`Failed to submit: ${create.data?.detail || "Unknown error"}`, "error");
         return;
       }
 
-      const runId = create.data.run_id;
-      await pollGradeRun(runId);
+      $("#ticketCode").textContent = create.data.ticketCode;
+      $("#ticketCard").classList.remove("hidden");
+      $("#gradeBtn").textContent = "Grading...";
+      await pollSubmission(create.data.id);
     } finally {
       $("#gradeBtn").disabled = false;
-      $("#gradeBtn").textContent = "Run Grader";
+      $("#gradeBtn").textContent = "Submit for Grading";
     }
   }
 
-  async function pollGradeRun(runId) {
+  async function pollSubmission(submissionId) {
     const timeout = Date.now() + 120000;
-    let lastStatus = "queued";
+    let lastStatus = "pending";
 
     while (Date.now() < timeout) {
-      const { res, data } = await api(`/grader/runs/${runId}`);
+      const { res, data } = await api(`/submissions/${submissionId}`);
 
       if (!res.ok) {
         setGradeStep("failed");
@@ -369,16 +401,13 @@
 
       lastStatus = data.status || lastStatus;
 
-      // Map backend status to our steps
-      if (lastStatus === "queued") setGradeStep("queued");
-      else if (lastStatus === "in_progress" || lastStatus === "crawling") setGradeStep("crawling");
-      else if (lastStatus === "validating") setGradeStep("validating");
-      else if (lastStatus === "scoring") setGradeStep("scoring");
-      else if (lastStatus === "completed") {
+      if (lastStatus === "pending") setGradeStep("queued");
+      else if (lastStatus === "running") setGradeStep("crawling");
+      else if (lastStatus === "complete") {
         setGradeStep("completed");
         renderGradeResult(data);
         return;
-      } else if (lastStatus === "failed") {
+      } else if (lastStatus === "error") {
         setGradeStep("failed");
         $("#gradeRaw").classList.remove("hidden");
         $("#gradeRawJson").textContent = JSON.stringify(data, null, 2);
@@ -386,6 +415,27 @@
       }
 
       await sleep(1500);
+    }
+  }
+
+  async function lookupTicket() {
+    const code = $("#ticketLookup")?.value.trim() || "";
+    if (!code) {
+      showToast("Enter a ticket code.", "warn");
+      return;
+    }
+    const { res, data } = await api(`/submissions/ticket/${encodeURIComponent(code)}`);
+    if (!res.ok) {
+      showToast(data.detail || "Ticket not found.", "error");
+      return;
+    }
+    if (data.status === "pending" || data.status === "running") {
+      $("#ticketCode").textContent = data.ticketCode;
+      $("#ticketCard").classList.remove("hidden");
+      $("#gradeStatus").classList.remove("hidden");
+      await pollSubmission(data.id);
+    } else {
+      renderGradeResult(data);
     }
   }
 
@@ -401,65 +451,74 @@
   }
 
   function renderGradeResult(data) {
-    // Score gauge
-    const score = data.total_score ?? 0;
-    $("#gradeScore").classList.remove("hidden");
-    $("#totalScore").textContent = Math.round(score);
-    $("#scoredUrl").textContent = data.input_url || "—";
+    const result = data.resultJson || {};
+    const score = data.score ?? result.totalPointsEarned ?? 0;
+    const max = data.maxScore ?? result.totalPointsPossible ?? 100;
+    const pct = max > 0 ? (score / max) * 100 : 0;
 
-    // Gauge animation
+    $("#gradeScore").classList.remove("hidden");
+    $("#totalScore").textContent = Math.round(pct);
+    $("#scoreMax").textContent = `/ ${Math.round(max)} pts`;
+    $("#scoredUrl").textContent = data.projectUrl || result.projectUrl || "—";
+    $("#scoreContext").textContent = `${Math.round(score)} points earned · ${result.passed || data.percentScore >= 70 ? "Passed" : "Not passing yet"}`;
+
     const gauge = $("#gaugeCircle");
     const circumference = 2 * Math.PI * 45;
     gauge.style.strokeDasharray = circumference;
-    gauge.style.strokeDashoffset = circumference - (score / 500) * circumference;
+    gauge.style.strokeDashoffset = circumference - (pct / 100) * circumference;
     gauge.classList.remove("low", "mid", "high");
-    gauge.classList.add(score >= 350 ? "high" : score >= 250 ? "mid" : "low");
+    gauge.classList.add(pct >= 70 ? "high" : pct >= 50 ? "mid" : "low");
 
-    // Rubric breakdown
-    if (data.sections) {
+    if (result.sections) {
       $("#gradeRubric").classList.remove("hidden");
-      renderRubricSections(data.sections);
+      renderRubricSections(result.sections);
     }
 
-    // Feedback
-    if (data.summary_feedback?.length) {
+    const feedback = [];
+    for (const section of result.sections || []) {
+      for (const check of section.checks || []) {
+        if (!check.passed) feedback.push(`${check.description}: ${check.message}`);
+      }
+    }
+    for (const err of result.errors || []) feedback.push(err);
+    if (feedback.length) {
       $("#gradeFeedback").classList.remove("hidden");
-      $("#feedbackList").innerHTML = data.summary_feedback
+      $("#feedbackList").innerHTML = feedback
         .map((f) => `<li>${escapeHtml(f)}</li>`)
         .join("");
+    } else {
+      $("#gradeFeedback").classList.add("hidden");
     }
 
-    // Raw JSON
     $("#gradeRaw").classList.remove("hidden");
     $("#gradeRawJson").textContent = JSON.stringify(data, null, 2);
   }
 
   function renderRubricSections(sections) {
     const container = $("#rubricSections");
-    const labels = {
-      scope_theme_content: "1. Scope, Theme & Content",
-      navigation_semantic: "2. Navigation & Semantic HTML",
-      css_design_responsive: "3. CSS, Design & Responsiveness",
-      required_elements: "4. Required Elements & Media",
-      js_validation_security: "5. JS, Validation & Security",
-    };
-
-    container.innerHTML = Object.entries(sections)
-      .map(([key, sec]) => {
-        const score = sec.score ?? 0;
-        const max = sec.max_score ?? 10;
+    container.innerHTML = sections
+      .map((sec) => {
+        const score = sec.pointsEarned ?? 0;
+        const max = sec.pointsPossible ?? 10;
         const pct = max > 0 ? (score / max) * 100 : 0;
-        const label = labels[key] || key;
         const cls = pct >= 70 ? "high" : pct >= 50 ? "mid" : "low";
+        const checks = (sec.checks || []).map((check) => `
+          <div class="check-row ${check.passed ? "passed" : "failed"}">
+            <span>${check.passed ? "✓" : "!"}</span>
+            <p>${escapeHtml(check.description)}<small>${escapeHtml(check.message || "")}</small></p>
+            <strong>${check.pointsEarned}/${check.pointsPossible}</strong>
+          </div>
+        `).join("");
         return `
           <div class="rubric-item">
             <div class="rubric-header">
-              <span class="rubric-label">${escapeHtml(label)}</span>
+              <span class="rubric-label">${escapeHtml(sec.title || sec.sectionId)}</span>
               <span class="rubric-score">${score}/${max}</span>
             </div>
             <div class="rubric-bar">
               <div class="rubric-fill ${cls}" style="width: ${pct}%"></div>
             </div>
+            <div class="check-list">${checks}</div>
           </div>
         `;
       })
@@ -765,92 +824,215 @@
   // ============================================================
   // Reports View
   // ============================================================
+  async function loadWebgraderDashboard() {
+    await Promise.all([loadAssignments(), loadReports(), loadRubricTemplates()]);
+  }
+
+  async function loadAssignments() {
+    const tbody = $("#assignmentsBody");
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="6" class="muted">Loading...</td></tr>';
+    const { res, data } = await api("/assignments");
+    if (!res.ok) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted">Failed to load assignments.</td></tr>';
+      return;
+    }
+    webgraderAssignments = data || [];
+    const filter = $("#filterAssignment");
+    if (filter) {
+      filter.innerHTML = '<option value="">All assignments</option>' +
+        webgraderAssignments.map((a) => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)}</option>`).join("");
+    }
+    tbody.innerHTML = webgraderAssignments.length
+      ? webgraderAssignments.map((a) => `
+          <tr>
+            <td>${escapeHtml(a.name)}</td>
+            <td><span class="status-badge ${a.isActive ? "completed" : "failed"}">${a.isActive ? "Active" : "Inactive"}</span></td>
+            <td>${a.totalPoints}</td>
+            <td>${a.sectionCount}</td>
+            <td>${a.checkCount}</td>
+            <td>
+              <button class="btn btn-sm" onclick="app.editAssignment('${a.id}')">Edit</button>
+              <button class="btn btn-sm btn-ghost" onclick="app.deleteAssignment('${a.id}')">Delete</button>
+            </td>
+          </tr>
+        `).join("")
+      : '<tr><td colspan="6" class="muted">No assignments yet.</td></tr>';
+  }
+
+  async function loadRubricTemplates() {
+    const picker = $("#templatePicker");
+    if (!picker) return;
+    const { res, data } = await api("/rubric-templates");
+    if (!res.ok) return;
+    rubricTemplates = data || [];
+    picker.innerHTML = rubricTemplates.map((t, i) => `<option value="${i}">${escapeHtml(t.name)}</option>`).join("");
+  }
+
+  function openAssignmentEditor(assignment = null) {
+    editingAssignmentId = assignment?.id || null;
+    $("#assignmentEditor").classList.remove("hidden");
+    $("#assignmentError").classList.add("hidden");
+    $("#assignmentName").value = assignment?.name || "";
+    $("#assignmentDescription").value = assignment?.description || "";
+    $("#assignmentActive").value = String(assignment?.isActive ?? true);
+    $("#assignmentRubric").value = JSON.stringify(assignment?.rubricJson || rubricTemplates[0]?.rubric || {}, null, 2);
+  }
+
+  function editAssignment(id) {
+    const assignment = webgraderAssignments.find((a) => a.id === id);
+    if (assignment) openAssignmentEditor(assignment);
+  }
+
+  async function deleteAssignment(id) {
+    if (!confirm("Delete this assignment and its submissions?")) return;
+    const { res, data } = await api(`/assignments/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      showToast(data.detail || "Failed to delete assignment.", "error");
+      return;
+    }
+    showToast("Assignment deleted.", "success");
+    loadWebgraderDashboard();
+  }
+
+  function loadSelectedTemplate() {
+    const idx = Number($("#templatePicker")?.value || 0);
+    const template = rubricTemplates[idx];
+    if (!template) return;
+    $("#assignmentName").value = template.rubric.title || template.name;
+    $("#assignmentDescription").value = template.rubric.description || "";
+    $("#assignmentRubric").value = JSON.stringify(template.rubric, null, 2);
+  }
+
+  async function saveAssignment() {
+    const errorEl = $("#assignmentError");
+    errorEl.classList.add("hidden");
+    let rubric;
+    try {
+      rubric = JSON.parse($("#assignmentRubric").value || "{}");
+    } catch (err) {
+      errorEl.textContent = `Rubric JSON is malformed: ${err.message}`;
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    const body = {
+      name: $("#assignmentName").value.trim() || rubric.title || "Untitled Assignment",
+      description: $("#assignmentDescription").value.trim(),
+      isActive: $("#assignmentActive").value === "true",
+      rubricJson: rubric,
+    };
+    const path = editingAssignmentId ? `/assignments/${editingAssignmentId}` : "/assignments";
+    const method = editingAssignmentId ? "PATCH" : "POST";
+    const { res, data } = await api(path, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      errorEl.textContent = data.detail ? JSON.stringify(data.detail) : "Failed to save assignment.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    $("#assignmentEditor").classList.add("hidden");
+    showToast("Assignment saved.", "success");
+    loadWebgraderDashboard();
+  }
+
   async function loadReports() {
-    const term = $("#filterTerm")?.value.trim() || "";
-    const student = $("#filterStudent")?.value.trim() || "";
+    const assignmentId = $("#filterAssignment")?.value || "";
+    const status = $("#filterStatus")?.value || "";
 
     const params = new URLSearchParams();
-    params.set("page", reportsPage);
-    params.set("pageSize", reportsPageSize);
-    if (term) params.set("term", term);
-    if (student) params.set("student", student);
+    if (assignmentId) params.set("assignmentId", assignmentId);
+    if (status) params.set("status", status);
 
     const tbody = $("#reportsBody");
-    tbody.innerHTML = '<tr><td colspan="6" class="muted">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="muted">Loading...</td></tr>';
 
     try {
-      const { res, data } = await api(`/grader/runs?${params}`);
+      const { res, data } = await api(`/submissions?${params}`);
 
       if (!res.ok) {
-        tbody.innerHTML = '<tr><td colspan="6" class="muted">Failed to load.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="muted">Failed to load.</td></tr>';
         return;
       }
 
       if (!data.items?.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="muted">No results found.</td></tr>';
-        updatePagination(1, 0);
+        tbody.innerHTML = '<tr><td colspan="8" class="muted">No submissions found.</td></tr>';
+        updateWebgraderStats([]);
         return;
       }
 
       tbody.innerHTML = data.items
         .map((item) => {
-          const date = new Date(item.created_at).toLocaleString();
-          const score = item.total_score != null ? Math.round(item.total_score) : "—";
-          const scoreClass = item.total_score >= 350 ? "ok" : item.total_score >= 250 ? "warn" : "low";
-          const urlShort = item.url?.replace(/^https?:\/\//, "").slice(0, 35) || "—";
+          const date = new Date(item.submittedAt).toLocaleString();
+          const pct = item.percentScore ?? 0;
+          const score = item.score != null ? `${Math.round(item.score)}/${Math.round(item.maxScore || 0)}` : "—";
+          const scoreClass = pct >= 70 ? "ok" : pct >= 50 ? "warn" : "low";
           return `
             <tr>
-              <td>${escapeHtml(date)}</td>
-              <td>${escapeHtml(item.student_username || "—")}</td>
-              <td class="url-cell" title="${escapeHtml(item.url || "")}">${escapeHtml(urlShort)}</td>
+              <td><strong>${escapeHtml(item.ticketCode)}</strong></td>
+              <td>${escapeHtml(item.studentName || "—")}</td>
+              <td>${escapeHtml(item.studentEmail || "—")}</td>
+              <td>${escapeHtml(item.assignmentName || "—")}</td>
               <td><span class="score-badge ${scoreClass}">${score}</span></td>
               <td><span class="status-badge ${item.status}">${item.status}</span></td>
-              <td><button class="btn btn-sm" onclick="app.showRunDetail('${item.run_id}')">View</button></td>
+              <td>${escapeHtml(date)}</td>
+              <td>
+                <button class="btn btn-sm" onclick="app.showRunDetail('${item.id}')">View</button>
+                <button class="btn btn-sm btn-ghost" onclick="app.regradeSubmission('${item.id}')">Regrade</button>
+              </td>
             </tr>
           `;
         })
         .join("");
 
-      updatePagination(data.page, data.total);
+      updateWebgraderStats(data.items);
     } catch {
-      tbody.innerHTML = '<tr><td colspan="6" class="muted">Error loading reports.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="muted">Error loading submissions.</td></tr>';
     }
   }
 
-  function updatePagination(page, total) {
-    const totalPages = Math.ceil(total / reportsPageSize) || 1;
-    $("#pageInfo").textContent = `Page ${page} of ${totalPages}`;
-    $("#prevPageBtn").disabled = page <= 1;
-    $("#nextPageBtn").disabled = page >= totalPages;
+  function updateWebgraderStats(items) {
+    const complete = items.filter((x) => x.status === "complete");
+    const passing = complete.filter((x) => (x.percentScore || 0) >= 70);
+    const avg = complete.length
+      ? Math.round(complete.reduce((sum, x) => sum + (x.percentScore || 0), 0) / complete.length)
+      : 0;
+    $("#wgStatTotal").textContent = items.length;
+    $("#wgStatGraded").textContent = complete.length;
+    $("#wgStatPassing").textContent = passing.length;
+    $("#wgStatAverage").textContent = complete.length ? `${avg}%` : "—";
   }
 
-  async function showRunDetail(runId) {
+  async function showRunDetail(submissionId) {
     const modal = $("#runDetailModal");
     const body = $("#runDetailBody");
     modal.classList.remove("hidden");
     body.innerHTML = '<p class="muted">Loading...</p>';
 
     try {
-      const { res, data } = await api(`/grader/runs/${runId}`);
+      const { res, data } = await api(`/submissions/${submissionId}`);
       if (!res.ok) {
-        body.innerHTML = `<p class="error-text">Failed to load run details.</p>`;
+        body.innerHTML = `<p class="error-text">Failed to load submission details.</p>`;
         return;
       }
 
-      const score = data.total_score ?? "—";
+      const result = data.resultJson || {};
+      const pct = data.percentScore ?? result.percentScore ?? 0;
       body.innerHTML = `
         <div class="detail-header">
-          <div class="detail-score ${score >= 70 ? "high" : score >= 50 ? "mid" : "low"}">${Math.round(score)}</div>
+          <div class="detail-score ${pct >= 70 ? "high" : pct >= 50 ? "mid" : "low"}">${Math.round(pct)}%</div>
           <div class="detail-meta">
-            <p><strong>URL:</strong> ${escapeHtml(data.input_url || "—")}</p>
+            <p><strong>Ticket:</strong> ${escapeHtml(data.ticketCode || "—")}</p>
+            <p><strong>URL:</strong> ${escapeHtml(data.projectUrl || "—")}</p>
             <p><strong>Status:</strong> ${data.status}</p>
-            <p><strong>Student:</strong> ${escapeHtml(data.student_username || "—")}</p>
+            <p><strong>Student:</strong> ${escapeHtml(data.studentName || "—")}</p>
+            <p><strong>Assignment:</strong> ${escapeHtml(data.assignmentName || "—")}</p>
           </div>
         </div>
         <h4>Rubric Breakdown</h4>
-        ${data.sections ? renderDetailSections(data.sections) : "<p>No section data.</p>"}
-        <h4>Feedback</h4>
-        ${data.summary_feedback?.length ? `<ul>${data.summary_feedback.map((f) => `<li>${escapeHtml(f)}</li>`).join("")}</ul>` : "<p>No feedback.</p>"}
+        ${result.sections ? renderDetailSections(result.sections) : "<p>No section data yet.</p>"}
         <details>
           <summary>Raw JSON</summary>
           <pre class="output">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
@@ -862,13 +1044,49 @@
   }
 
   function renderDetailSections(sections) {
-    return Object.entries(sections)
-      .map(([key, sec]) => {
-        const score = sec.score ?? 0;
-        const max = sec.max_score ?? 10;
-        return `<p><strong>${escapeHtml(key)}:</strong> ${score}/${max}</p>`;
-      })
+    return sections.map((sec) => `
+      <div class="rubric-item">
+        <p><strong>${escapeHtml(sec.title || sec.sectionId)}:</strong> ${sec.pointsEarned}/${sec.pointsPossible}</p>
+        ${(sec.checks || []).map((check) => `
+          <div class="check-row ${check.passed ? "passed" : "failed"}">
+            <span>${check.passed ? "✓" : "!"}</span>
+            <p>${escapeHtml(check.description)}<small>${escapeHtml(check.message || "")}</small></p>
+            <strong>${check.pointsEarned}/${check.pointsPossible}</strong>
+          </div>
+        `).join("")}
+      </div>
+    `)
       .join("");
+  }
+
+  async function regradeSubmission(submissionId) {
+    const { res, data } = await api(`/submissions/${submissionId}/regrade`, { method: "POST" });
+    if (!res.ok) {
+      showToast(data.detail || "Failed to start regrade.", "error");
+      return;
+    }
+    showToast("Regrade started.", "success");
+    loadReports();
+  }
+
+  async function exportSubmissionsCsv() {
+    const assignmentId = $("#filterAssignment")?.value || "";
+    const params = new URLSearchParams();
+    if (assignmentId) params.set("assignmentId", assignmentId);
+    const url = resolveUrl(`/export/csv?${params}`);
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      showToast("CSV export failed.", "error");
+      return;
+    }
+    const blob = await res.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "webgrader-submissions.csv";
+    link.click();
+    URL.revokeObjectURL(link.href);
   }
 
   function closeModal() {
@@ -1959,6 +2177,7 @@
   function bindEvents() {
     // Login
     $("#loginBtn").addEventListener("click", handleLogin);
+    $("#publicGraderBtn")?.addEventListener("click", showPublicGrader);
     $("#password").addEventListener("keydown", (e) => {
       if (e.key === "Enter") handleLogin();
     });
@@ -1971,6 +2190,11 @@
 
     // Grader
     $("#gradeBtn").addEventListener("click", handleGrade);
+    $("#ticketLookupBtn")?.addEventListener("click", lookupTicket);
+    $("#copyTicketBtn")?.addEventListener("click", () => {
+      navigator.clipboard?.writeText($("#ticketCode")?.textContent || "");
+      showToast("Ticket copied.", "success");
+    });
     $("#gradeBrowseBtn")?.addEventListener("click", openGradeFilePicker);
     setupGradeFilePicker();
 
@@ -1986,23 +2210,26 @@
 
     // Reports
     $("#filterBtn").addEventListener("click", () => {
-      reportsPage = 1;
       loadReports();
     });
     $("#clearFiltersBtn").addEventListener("click", () => {
-      $("#filterTerm").value = "";
-      $("#filterStudent").value = "";
-      reportsPage = 1;
+      $("#filterAssignment").value = "";
+      $("#filterStatus").value = "";
       loadReports();
     });
-    $("#prevPageBtn").addEventListener("click", () => {
+    $("#prevPageBtn")?.addEventListener("click", () => {
       reportsPage = Math.max(1, reportsPage - 1);
       loadReports();
     });
-    $("#nextPageBtn").addEventListener("click", () => {
+    $("#nextPageBtn")?.addEventListener("click", () => {
       reportsPage++;
       loadReports();
     });
+    $("#newAssignmentBtn")?.addEventListener("click", () => openAssignmentEditor());
+    $("#loadTemplateBtn")?.addEventListener("click", loadSelectedTemplate);
+    $("#saveAssignmentBtn")?.addEventListener("click", saveAssignment);
+    $("#cancelAssignmentBtn")?.addEventListener("click", () => $("#assignmentEditor")?.classList.add("hidden"));
+    $("#exportSubmissionsBtn")?.addEventListener("click", exportSubmissionsCsv);
 
     // Modal
     $(".modal-close")?.addEventListener("click", closeModal);
@@ -4582,6 +4809,9 @@
   // Expose needed functions globally
   window.app = {
     showRunDetail,
+    editAssignment,
+    deleteAssignment,
+    regradeSubmission,
     controlService,
     downloadBackup,
     deleteBackup,

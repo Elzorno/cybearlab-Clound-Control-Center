@@ -28,6 +28,7 @@ declare(strict_types=1);
         <input id="password" class="input" type="password" value="change-me-now" autocomplete="current-password" />
       </label>
       <button id="loginBtn" class="btn primary full-width">Sign In</button>
+      <button id="publicGraderBtn" class="btn btn-ghost full-width" type="button">Student Submission</button>
       <p id="loginError" class="error-text"></p>
     </div>
   </div>
@@ -139,20 +140,36 @@ declare(strict_types=1);
       </div>
       <div class="grader-layout">
         <article class="card glass grader-input-card">
-          <h3>Grade a Website</h3>
-          <label>Site URL
+          <h3>Submit Project</h3>
+          <label>Assignment
+            <select id="gradeAssignment" class="input">
+              <option value="">Loading assignments...</option>
+            </select>
+          </label>
+          <label>Full Name
+            <input id="gradeStudent" class="input" placeholder="Jane Smith" />
+          </label>
+          <label>Email
+            <input id="gradeEmail" class="input" placeholder="jane.smith@example.edu" />
+          </label>
+          <label>Project URL
             <div class="input-with-action">
               <input id="gradeUrl" class="input" placeholder="https://student.example.com/project" />
               <button id="gradeBrowseBtn" class="btn btn-sm" type="button" title="Browse student files">📁</button>
             </div>
           </label>
-          <label>Student Username <span class="optional">(optional)</span>
-            <input id="gradeStudent" class="input" placeholder="jsmith" />
+          <button id="gradeBtn" class="btn primary full-width">Submit for Grading</button>
+          <div id="ticketCard" class="ticket-card hidden">
+            <span class="muted small">Ticket Code</span>
+            <strong id="ticketCode">—</strong>
+            <button id="copyTicketBtn" class="btn btn-sm" type="button">Copy</button>
+          </div>
+          <label>Look Up Ticket
+            <div class="input-with-action">
+              <input id="ticketLookup" class="input" placeholder="A3F9K2" />
+              <button id="ticketLookupBtn" class="btn btn-sm" type="button">Find</button>
+            </div>
           </label>
-          <label>Term <span class="optional">(optional)</span>
-            <input id="gradeTerm" class="input" placeholder="2026sp" />
-          </label>
-          <button id="gradeBtn" class="btn primary full-width">Run Grader</button>
         </article>
 
         <div class="grader-results">
@@ -193,8 +210,9 @@ declare(strict_types=1);
                 <span class="gauge-value" id="totalScore">—</span>
               </div>
               <div class="score-meta">
-                <p class="score-title">Total Score <small>/ 500</small></p>
+                <p class="score-title">Total Score <small id="scoreMax">/ 100</small></p>
                 <p class="score-url" id="scoredUrl">—</p>
+                <p class="muted" id="scoreContext"></p>
               </div>
             </div>
           </article>
@@ -1265,19 +1283,85 @@ declare(strict_types=1);
     <!-- View: Reports -->
     <section id="view-reports" class="view hidden">
       <div class="view-header">
-        <h2>Grading Reports</h2>
-        <p class="muted">Browse and filter historical grading runs</p>
+        <h2>WebGrader Reports</h2>
+        <p class="muted">Manage rubrics, submissions, regrading, and exports</p>
+      </div>
+      <div class="stats-grid">
+        <article class="stat-card"><span>Total Submissions</span><strong id="wgStatTotal">—</strong></article>
+        <article class="stat-card"><span>Graded</span><strong id="wgStatGraded">—</strong></article>
+        <article class="stat-card"><span>Passing</span><strong id="wgStatPassing">—</strong></article>
+        <article class="stat-card"><span>Average</span><strong id="wgStatAverage">—</strong></article>
       </div>
       <article class="card glass">
-        <div class="reports-filters">
-          <label>Term
-            <input id="filterTerm" class="input" placeholder="2026sp" />
+        <div class="card-header">
+          <h3>Assignments &amp; Rubrics</h3>
+          <button id="newAssignmentBtn" class="btn btn-sm">New Assignment</button>
+        </div>
+        <div class="reports-table-wrap">
+          <table class="reports-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Active</th>
+                <th>Points</th>
+                <th>Sections</th>
+                <th>Checks</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="assignmentsBody">
+              <tr><td colspan="6" class="muted">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="assignmentEditor" class="assignment-editor hidden">
+          <div class="form-grid">
+            <label>Name
+              <input id="assignmentName" class="input" />
+            </label>
+            <label>Active
+              <select id="assignmentActive" class="input">
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </label>
+          </div>
+          <label>Description
+            <input id="assignmentDescription" class="input" />
           </label>
-          <label>Student
-            <input id="filterStudent" class="input" placeholder="jsmith" />
+          <div class="reports-filters">
+            <button id="loadTemplateBtn" class="btn btn-sm" type="button">Load Template</button>
+            <select id="templatePicker" class="input"></select>
+          </div>
+          <label>Rubric JSON
+            <textarea id="assignmentRubric" class="input code-editor" spellcheck="false"></textarea>
+          </label>
+          <p id="assignmentError" class="error-text hidden"></p>
+          <div class="reports-filters">
+            <button id="saveAssignmentBtn" class="btn primary" type="button">Save Assignment</button>
+            <button id="cancelAssignmentBtn" class="btn btn-ghost" type="button">Cancel</button>
+          </div>
+        </div>
+      </article>
+      <article class="card glass">
+        <div class="reports-filters">
+          <label>Assignment
+            <select id="filterAssignment" class="input">
+              <option value="">All assignments</option>
+            </select>
+          </label>
+          <label>Status
+            <select id="filterStatus" class="input">
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="running">Running</option>
+              <option value="complete">Complete</option>
+              <option value="error">Error</option>
+            </select>
           </label>
           <button id="filterBtn" class="btn">Apply Filters</button>
           <button id="clearFiltersBtn" class="btn btn-ghost">Clear</button>
+          <button id="exportSubmissionsBtn" class="btn">Export CSV</button>
         </div>
       </article>
       <article class="card glass">
@@ -1285,23 +1369,20 @@ declare(strict_types=1);
           <table class="reports-table">
             <thead>
               <tr>
-                <th>Date</th>
+                <th>Ticket</th>
                 <th>Student</th>
-                <th>URL</th>
+                <th>Email</th>
+                <th>Assignment</th>
                 <th>Score</th>
                 <th>Status</th>
+                <th>Submitted</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="reportsBody">
-              <tr><td colspan="6" class="muted">Loading...</td></tr>
+              <tr><td colspan="8" class="muted">Loading...</td></tr>
             </tbody>
           </table>
-        </div>
-        <div class="reports-pagination">
-          <button id="prevPageBtn" class="btn btn-sm" disabled>Previous</button>
-          <span id="pageInfo" class="page-info">Page 1</span>
-          <button id="nextPageBtn" class="btn btn-sm">Next</button>
         </div>
       </article>
 

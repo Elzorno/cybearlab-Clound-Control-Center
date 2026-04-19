@@ -544,6 +544,27 @@ label {
   gap: 16px;
 }
 
+.ticket-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.55);
+}
+
+.ticket-card strong {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 1.4rem;
+  letter-spacing: 0.08em;
+}
+
+.ticket-card .btn {
+  grid-row: span 2;
+}
+
 /* ============================================================
    Status Timeline
    ============================================================ */
@@ -709,6 +730,54 @@ label {
 .rubric-fill.mid { background: var(--warn); }
 .rubric-fill.low { background: var(--low); }
 
+.check-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.check-row {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.5);
+}
+
+.check-row span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-weight: 800;
+  font-size: 0.75rem;
+}
+
+.check-row.passed span {
+  background: #d8eee4;
+  color: var(--ok);
+}
+
+.check-row.failed span {
+  background: #f8dada;
+  color: var(--low);
+}
+
+.check-row p {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.check-row small {
+  display: block;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
 /* ============================================================
    Feedback List
    ============================================================ */
@@ -819,6 +888,37 @@ label {
   justify-content: center;
   gap: 16px;
   margin-top: 16px;
+}
+
+.assignment-editor {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.code-editor {
+  min-height: 320px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.status-badge.pending,
+.status-badge.running {
+  background: #f9e8d6;
+  color: var(--warn);
+}
+
+.status-badge.complete {
+  background: #d8eee4;
+  color: var(--ok);
+}
+
+.status-badge.error {
+  background: #f8dada;
+  color: var(--low);
 }
 
 .page-info {

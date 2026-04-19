@@ -255,7 +255,6 @@ def list_submissions(
 def get_submission(
     submission_id: str,
     db: Session = Depends(get_db),
-    _: str = Depends(get_current_user_id),
 ) -> SubmissionResponse:
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if not submission:
