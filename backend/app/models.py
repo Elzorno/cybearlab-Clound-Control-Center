@@ -50,6 +50,34 @@ class AdminAction(Base, TimestampMixin):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class Assignment(Base, TimestampMixin):
+    __tablename__ = "assignments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    rubric_json: Mapped[dict] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class Submission(Base):
+    __tablename__ = "submissions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    assignment_id: Mapped[str] = mapped_column(String(36), ForeignKey("assignments.id"), nullable=False)
+    student_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    student_email: Mapped[str] = mapped_column(String(254), nullable=False)
+    project_url: Mapped[str] = mapped_column(Text, nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    score: Mapped[float | None] = mapped_column(Numeric(7, 2))
+    max_score: Mapped[float | None] = mapped_column(Numeric(7, 2))
+    result_json: Mapped[dict | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"))
+    ticket_code: Mapped[str] = mapped_column(String(8), unique=True, nullable=False)
+    graded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+
 class GradeRun(Base, TimestampMixin):
     __tablename__ = "grade_runs"
 

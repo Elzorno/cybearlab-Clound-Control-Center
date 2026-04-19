@@ -1,8 +1,8 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, model_validator
 
 
 class LoginRequest(BaseModel):
@@ -109,6 +109,186 @@ class GradeRunListResponse(BaseModel):
     page_size: int
     total: int
     items: list[GradeRunListItem]
+
+
+RubricScope = Literal["index", "all_pages", "any_page"] | dict[str, str]
+RubricCheckType = Literal[
+    "html_element",
+    "html_attribute",
+    "css_property",
+    "css_selector",
+    "js_file",
+    "js_function",
+    "js_dom_event",
+    "link_crawl",
+    "page_count",
+    "w3c_html",
+    "w3c_css",
+    "meta_tag",
+    "file_exists",
+    "custom_regex",
+]
+
+
+class RubricCheck(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    type: str = Field(min_length=1, max_length=64)
+    description: str = Field(min_length=1)
+    points: float = Field(gt=0)
+    required: bool = False
+    scope: RubricScope = "index"
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class RubricSection(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    checks: list[RubricCheck] = Field(default_factory=list)
+
+
+class RubricDefinition(BaseModel):
+    version: str = "1.0"
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    totalPoints: float = Field(gt=0)
+    passingScore: float = Field(default=70, ge=0, le=100)
+    requiresJavaScript: bool = False
+    minPages: int | None = Field(default=None, ge=1)
+    maxPages: int = Field(default=20, ge=1, le=100)
+    sections: list[RubricSection] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_rubric(self) -> "RubricDefinition":
+        if self.version != "1.0":
+            raise ValueError("Only rubric schema version 1.0 is supported")
+
+        section_ids = [section.id for section in self.sections]
+        if len(section_ids) != len(set(section_ids)):
+            raise ValueError("Rubric section IDs must be unique")
+
+        check_ids: list[str] = []
+        for section in self.sections:
+            check_ids.extend(check.id for check in section.checks)
+        if len(check_ids) != len(set(check_ids)):
+            raise ValueError("Rubric check IDs must be unique")
+
+        check_total = round(sum(check.points for section in self.sections for check in section.checks), 2)
+        if round(self.totalPoints, 2) != check_total:
+            raise ValueError(f"Rubric totalPoints must equal the sum of check points ({check_total:g})")
+        return self
+
+
+class AssignmentBase(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    rubricJson: RubricDefinition
+    isActive: bool = True
+
+
+class AssignmentCreate(AssignmentBase):
+    pass
+
+
+class AssignmentUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    rubricJson: RubricDefinition | None = None
+    isActive: bool | None = None
+
+
+class AssignmentResponse(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    rubricJson: dict[str, Any]
+    isActive: bool
+    createdAt: datetime
+    totalPoints: float
+    sectionCount: int
+    checkCount: int
+
+
+class SubmissionCreate(BaseModel):
+    assignmentId: str
+    studentName: str = Field(min_length=1, max_length=200)
+    studentEmail: EmailStr
+    projectUrl: HttpUrl
+
+
+class SubmissionAccepted(BaseModel):
+    id: str
+    assignmentId: str
+    studentName: str
+    studentEmail: EmailStr
+    projectUrl: str
+    status: str
+    ticketCode: str
+    submittedAt: datetime
+
+
+class CheckResult(BaseModel):
+    checkId: str
+    type: str
+    description: str
+    passed: bool
+    required: bool = False
+    pointsEarned: float
+    pointsPossible: float
+    message: str
+    details: dict[str, Any] | None = None
+
+
+class SectionResult(BaseModel):
+    sectionId: str
+    title: str
+    description: str | None = None
+    pointsEarned: float
+    pointsPossible: float
+    checks: list[CheckResult]
+
+
+class GradingResult(BaseModel):
+    submissionId: str
+    assignmentName: str
+    studentName: str
+    projectUrl: str
+    pagesFound: list[str]
+    totalPointsEarned: float
+    totalPointsPossible: float
+    percentScore: float
+    passed: bool
+    incomplete: bool = False
+    gradedAt: datetime
+    sections: list[SectionResult]
+    errors: list[str] = Field(default_factory=list)
+
+
+class SubmissionResponse(BaseModel):
+    id: str
+    assignmentId: str
+    assignmentName: str | None = None
+    studentName: str
+    studentEmail: str
+    projectUrl: str
+    submittedAt: datetime
+    status: str
+    score: float | None = None
+    maxScore: float | None = None
+    percentScore: float | None = None
+    resultJson: dict[str, Any] | None = None
+    ticketCode: str
+    gradedAt: datetime | None = None
+    errorMessage: str | None = None
+
+
+class SubmissionListResponse(BaseModel):
+    items: list[SubmissionResponse]
+
+
+class RubricTemplateResponse(BaseModel):
+    name: str
+    rubric: dict[str, Any]
 
 
 class AuditEventResponse(BaseModel):
