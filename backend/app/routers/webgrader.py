@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -91,7 +91,7 @@ def _run_submission_grading(submission_id: str) -> None:
             submission.score = result["totalPointsEarned"]
             submission.max_score = result["totalPointsPossible"]
             submission.result_json = result
-            submission.graded_at = datetime.utcnow()
+            submission.graded_at = datetime.now(timezone.utc)
             submission.error_message = None
         except Exception as exc:
             submission.status = "error"

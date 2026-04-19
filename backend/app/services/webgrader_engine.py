@@ -7,7 +7,7 @@ import secrets
 import socket
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urldefrag, urljoin, urlparse
 
@@ -360,7 +360,8 @@ def _meta_tag(page: RubricPage, params: dict[str, Any]) -> tuple[bool, dict[str,
 
 def _file_exists(client: httpx.Client, root_url: str, params: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
     path = str(params.get("path", "")).lstrip("/")
-    target = _normalize_url(urljoin(root_url.rstrip("/") + "/", path))
+    base = root_url if root_url.endswith("/") else urljoin(root_url, "./")
+    target = _normalize_url(urljoin(base, path))
     try:
         resp = _safe_get(client, target)
         passed = 200 <= resp.status_code < 400
@@ -524,7 +525,7 @@ def grade_submission_with_rubric(submission: Submission, assignment: Assignment)
         )
 
     percent = round((total_earned / total_possible) * 100, 2) if total_possible else 0.0
-    graded_at = datetime.utcnow()
+    graded_at = datetime.now(timezone.utc)
     return {
         "submissionId": submission.id,
         "assignmentName": assignment.name,
@@ -536,7 +537,7 @@ def grade_submission_with_rubric(submission: Submission, assignment: Assignment)
         "percentScore": percent,
         "passed": percent >= rubric.passingScore,
         "incomplete": incomplete,
-        "gradedAt": graded_at.isoformat() + "Z",
+        "gradedAt": graded_at.isoformat().replace("+00:00", "Z"),
         "sections": sections,
         "errors": ctx.errors,
     }
