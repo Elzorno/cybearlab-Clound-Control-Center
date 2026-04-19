@@ -6,6 +6,7 @@ from .config import settings
 from .db import SessionLocal, init_db
 from .routers import admin, audit, auth, cron, databases, deployment, dns, files, ftp, grader, health, security, ssl, system, updates, users, webgrader
 from .services.auth import bootstrap_admin_user
+from .services.rubric_templates import bootstrap_default_assignments
 
 app = FastAPI(
     title=settings.app_name,
@@ -45,5 +46,6 @@ def startup() -> None:
     db: Session = SessionLocal()
     try:
         bootstrap_admin_user(db)
+        bootstrap_default_assignments(db)
     finally:
         db.close()

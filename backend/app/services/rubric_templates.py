@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy.orm import Session
+
+from ..models import Assignment
+
 
 BASIC_HTML_CSS_RUBRIC: dict[str, Any] = {
     "version": "1.0",
@@ -191,3 +195,20 @@ def get_rubric_templates() -> list[dict[str, Any]]:
         {"name": "Basic HTML/CSS Website", "rubric": BASIC_HTML_CSS_RUBRIC},
         {"name": "Multi-Page Web Project", "rubric": MULTI_PAGE_WEB_PROJECT_RUBRIC},
     ]
+
+
+def bootstrap_default_assignments(db: Session) -> None:
+    if db.query(Assignment).count() > 0:
+        return
+
+    for index, template in enumerate(get_rubric_templates()):
+        rubric = template["rubric"]
+        db.add(
+            Assignment(
+                name=rubric["title"],
+                description=rubric.get("description"),
+                rubric_json=rubric,
+                is_active=index == 0,
+            )
+        )
+    db.commit()
